@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rules>
+<rule type="condition_generating">
+	<lhs>
+		<relational_formula table="Countries" index="1">
+			<variable name="x1" column="ID" is_constant="false"/>
+			<variable name="x2" column="country" is_constant="false"/>
+			<variable name="x3" column="continent" is_constant="false"/>
+		</relational_formula>
+		<relational_formula table="Countries" index="2">
+			<variable name="x4" column="ID" is_constant="false"/>
+			<variable name="x5" column="country" is_constant="false"/>
+			<variable name="x6" column="continent" is_constant="false"/>
+		</relational_formula>
+		<conditional_formula operator="==" index="3">
+			<variable name="x2" column="country" is_constant="false"/>
+			<variable name="x5" column="country" is_constant="false"/>
+		</conditional_formula>
+	</lhs>
+	<rhs>
+		<conditional_formula operator="==" index="1">
+			<variable name="x3" column="continent" is_constant="false"/>
+			<variable name="x6" column="continent" is_constant="false"/>
+		</conditional_formula>
+	</rhs>
+	<false_query>
+Select C1.ID, C1.country, C1.continent, C2.ID, C2.country, C2.continent 
+From Countries As C1, Countries As C2 
+Where C1.country = C2.country AND C1.continent != C2.continent;
+	</false_query>
+</rule>
+<rule type="condition_generating">
+	<lhs>
+		<relational_formula table="Games" index="1">
+			<variable name="x1" column="ID" is_constant="false"/>
+			<variable name="x2" column="first_team" is_constant="false"/>
+			<variable name="x3" column="second_team" is_constant="false"/>
+			<variable name="x4" column="first_team_goals" is_constant="false"/>
+			<variable name="x5" column="second_team_goals" is_constant="false"/>
+			<variable name="x6" column="first_team_pen" is_constant="false"/>
+			<variable name="x7" column="second_team_pen" is_constant="false"/>
+		</relational_formula>
+		<conditional_formula operator="==" index="2">
+			<variable name="x4" column="first_team_goals" is_constant="false"/>
+			<variable name="x5" column="second_team_goals" is_constant="false"/>
+		</conditional_formula>
+	</lhs>
+	<rhs>
+		<conditional_formula operator=">=" index="1">
+			<variable name="x6" column="first_team_pen" is_constant="false"/>
+			<variable name="0" is_constant="true" value="0"/>
+		</conditional_formula>
+		<conditional_formula operator=">=" index="2">
+			<variable name="x7" column="second_team_pen" is_constant="false"/>
+			<variable name="0" is_constant="true" value="0"/>
+		</conditional_formula>
+		<conditional_formula operator="!=" index="3">
+			<variable name="x6" column="first_team_pen" is_constant="false"/>
+			<variable name="x7" column="second_team_pen" is_constant="false"/>
+		</conditional_formula>
+	</rhs>
+	<false_query>
+Select ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen
+From Games 
+Where first_team_goals = second_team_goals AND (first_team_pen &lt; 0 or second_team_pen &lt; 0 or first_team_pen = second_team_pen);
+	</false_query>
+</rule>
+<rule type="tuple_generating">
+	<lhs>
+		<relational_formula table="Teams" index="1">
+			<variable name="x1" column="ID" is_constant="false"/>
+			<variable name="x2" column="team" is_constant="false"/>
+			<variable name="x3" column="country" is_constant="false"/>
+		</relational_formula>
+	</lhs>
+	<rhs>
+		<relational_formula table="Countries" index="1">
+			<variable name="z1" column="ID" is_constant="false"/>
+			<variable name="x3" column="country" is_constant="false"/>
+			<variable name="z2" column="continent" is_constant="false"/>
+		</relational_formula>
+	</rhs>
+	<false_query>
+Select ID, team, country 
+From Teams 
+Where country NOT IN (Select country from Countries)
+	</false_query>
+</rule>
+<rule type="tuple_generating">
+	<lhs>
+		<relational_formula table="Games" index="1">
+			<variable name="x1" column="ID" is_constant="false"/>
+			<variable name="x2" column="first_team" is_constant="false"/>
+			<variable name="x3" column="second_team" is_constant="false"/>
+			<variable name="x4" column="first_team_goals" is_constant="false"/>
+			<variable name="x5" column="second_team_goals" is_constant="false"/>
+			<variable name="x6" column="first_team_pen" is_constant="false"/>
+			<variable name="x7" column="second_team_pen" is_constant="false"/>
+		</relational_formula>
+	</lhs>
+	<rhs>
+		<relational_formula table="Teams" index="1">
+			<variable name="z1" column="ID" is_constant="false"/>
+			<variable name="x2" column="team" is_constant="false"/>
+			<variable name="z2" column="country" is_constant="false"/>
+		</relational_formula>
+		<relational_formula table="Teams" index="2">
+			<variable name="z3" column="ID" is_constant="false"/>
+			<variable name="x3" column="team" is_constant="false"/>
+			<variable name="z4" column="country" is_constant="false"/>
+		</relational_formula>
+	</rhs>
+	<false_query>
+Select ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen
+From Games 
+Where (first_team NOT IN (Select team from Teams)) or (second_team NOT IN (Select team from Teams))
+	</false_query>
+</rule>
+<rule type="tuple_generating">
+	<lhs>
+		<relational_formula table="Games" index="1">
+			<variable name="x1" column="ID" is_constant="false"/>
+			<variable name="x2" column="first_team" is_constant="false"/>
+			<variable name="x3" column="second_team" is_constant="false"/>
+			<variable name="x4" column="first_team_goals" is_constant="false"/>
+			<variable name="x5" column="second_team_goals" is_constant="false"/>
+			<variable name="x6" column="first_team_pen" is_constant="false"/>
+			<variable name="x7" column="second_team_pen" is_constant="false"/>
+		</relational_formula>
+	</lhs>
+	<rhs>
+		<relational_formula table="Allowed" index="1">
+			<variable name="z1" column="ID" is_constant="false"/>
+			<variable name="x2" column="team" is_constant="false"/>
+		</relational_formula>
+		<relational_formula table="Allowed" index="2">
+			<variable name="z2" column="ID" is_constant="false"/>
+			<variable name="x3" column="team" is_constant="false"/>
+		</relational_formula>
+	</rhs>
+	<false_query>
+Select ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen
+From Games 
+Where (first_team NOT IN (Select team from Allowed)) or (second_team NOT IN (Select team from Allowed))
+	</false_query>
+</rule>
+</rules>
