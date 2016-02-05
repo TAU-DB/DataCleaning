@@ -4,16 +4,10 @@ import java.util.List;
 
 public abstract class Formula {
 
-	private int m_index = 0;
 	protected List<Variable> m_variables;
 	
-	public Formula(int index, List<Variable> variables) {
-		m_index = index;
+	public Formula(List<Variable> variables) {
 		m_variables = variables;
-	}
-	
-	public int getIndex() {
-		return m_index;
 	}
 	
 	public Variable getVariableAt(int index) {

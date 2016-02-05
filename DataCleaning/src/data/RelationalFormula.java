@@ -6,8 +6,8 @@ public class RelationalFormula extends Formula {
 
 	private String m_table;
 	
-	public RelationalFormula(int index, String table, List<Variable> variables) {
-		super(index, variables);
+	public RelationalFormula(String table, List<Variable> variables) {
+		super(variables);
 		m_table = table;
 	}
 	

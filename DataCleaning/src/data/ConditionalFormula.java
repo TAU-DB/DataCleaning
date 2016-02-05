@@ -6,8 +6,8 @@ public class ConditionalFormula extends Formula {
 
 	private String m_operator;
 	
-	public ConditionalFormula(int index, List<Variable> variables, String operator) {
-		super(index, variables);
+	public ConditionalFormula(List<Variable> variables, String operator) {
+		super(variables);
 		m_operator = operator;
 	}
 	

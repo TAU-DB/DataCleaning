@@ -1,17 +1,20 @@
 package data;
 
+import java.util.HashSet;
 import java.util.List;
 
 public class Rule {
 
 	private String m_type;
 	private String m_falseQuery;
+	private String m_sourceQuery;
 	private List<Formula> m_lhs;
 	private List<Formula> m_rhs;
 	
-	public Rule(String type, String falseQuery, List<Formula> lhs, List<Formula> rhs) {
+	public Rule(String type, String falseQuery, String sourceQuery, List<Formula> lhs, List<Formula> rhs) {
 		m_type = type;
 		m_falseQuery = falseQuery;
+		m_sourceQuery = sourceQuery;
 		m_lhs = lhs;
 		m_rhs = rhs;
 	}
@@ -25,6 +28,10 @@ public class Rule {
 	
 	public String getFalseQuery() {
 		return m_falseQuery;
+	}
+	
+	public String getSourceQuery() {
+		return m_sourceQuery;
 	}
 	
 	public int getLHSFormulaCount() {
@@ -63,8 +70,15 @@ public class Rule {
 			}
 		}
 		
-		String result = lhs + " --> " + rhs + System.lineSeparator() + m_falseQuery + System.lineSeparator();
-		result += "LHS variables:" + System.lineSeparator();
+		String result = lhs + " --> " + rhs;
+		return result;
+	}
+	
+	public String toDetailedString() {
+		
+		String result = toString() + System.lineSeparator();
+		
+		result += m_falseQuery + System.lineSeparator() + m_sourceQuery + System.lineSeparator() + "LHS variables:" + System.lineSeparator();
 		for (Formula formula : m_lhs) {
 			for (int i = 0; i < formula.getVariableCount(); i++) {
 				result += formula.getVariableAt(i).toDetailedString() + System.lineSeparator();
@@ -78,5 +92,27 @@ public class Rule {
 		}
 		
 		return result;
+	}
+	
+	public HashSet<String> getRHSDefinedVariables() {
+		
+		HashSet<String> rhsDefinedVars = new HashSet<String>();
+		HashSet<String> lhsDefinedVars = new HashSet<String>();
+		for (Formula formula : m_lhs) {
+			for (int i = 0; i < formula.getVariableCount(); i++) {
+				Variable var = formula.getVariableAt(i);
+				lhsDefinedVars.add(var.getName());
+			}
+		}
+		for (Formula formula : m_rhs) {
+			for (int i = 0; i < formula.getVariableCount(); i++) {
+				Variable var = formula.getVariableAt(i);
+				if (!lhsDefinedVars.contains(var.getName())) {
+					rhsDefinedVars.add(var.getName());
+				}
+			}
+		}
+		
+		return rhsDefinedVars;
 	}
 }

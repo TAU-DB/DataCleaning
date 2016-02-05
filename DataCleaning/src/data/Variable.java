@@ -6,12 +6,14 @@ public class Variable {
 	private String m_column;
 	private boolean m_isConstant = false;
 	private String m_value;
+	private String m_type;
 	
-	public Variable(String name, String column, boolean isConstant, String value) {
+	public Variable(String name, String column, boolean isConstant, String value, String type) {
 		m_name = name;
 		m_column = column;
 		m_isConstant = isConstant;
 		m_value = value;
+		m_type = type;
 	}
 	
 	public String getName() {
@@ -28,6 +30,10 @@ public class Variable {
 	
 	public String getValue() {
 		return m_value;
+	}
+	
+	public String getType() {
+		return m_type;
 	}
 	
 	@Override
