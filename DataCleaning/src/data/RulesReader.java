@@ -50,7 +50,7 @@ public class RulesReader {
 
 			String rulesStr = "";
 			for (Rule rule : m_rules) {
-				rulesStr += rule.toString() + System.lineSeparator();
+				rulesStr += rule.toDetailedString() + System.lineSeparator();
 				rulesStr += "=======================================" + System.lineSeparator();
 			}
 
@@ -79,6 +79,13 @@ public class RulesReader {
 			String expression = "./false_query";
 			NodeList queryNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm, XPathConstants.NODESET);
 			String falseQuery = queryNodeList.item(0).getTextContent();
+			
+			expression = "./source_query";
+			queryNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm, XPathConstants.NODESET);
+			String sourceQuery = "";
+			if (queryNodeList.getLength() > 0) {
+				sourceQuery = queryNodeList.item(0).getTextContent();
+			}
 
 			expression = "./lhs/*";
 			NodeList lhsFormulasNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm,
@@ -110,7 +117,7 @@ public class RulesReader {
 				rhs.add(formula);
 			}			
 			
-			return new Rule(type, falseQuery, lhs, rhs);
+			return new Rule(type, falseQuery, sourceQuery, lhs, rhs);
 		} catch (XPathExpressionException e) {
 			e.printStackTrace();
 		}
@@ -119,18 +126,16 @@ public class RulesReader {
 
 	private RelationalFormula parseRelationalFormula(Element formulaElm) {
 
-		int index = Integer.parseInt(formulaElm.getAttribute("index"));
 		String table = formulaElm.getAttribute("table");
 		List<Variable> variables = parseFormulaVariables(formulaElm);
-		return new RelationalFormula(index, table, variables);
+		return new RelationalFormula(table, variables);
 	}
 
 	private ConditionalFormula parseConditionalFormula(Element formulaElm) {
 
-		int index = Integer.parseInt(formulaElm.getAttribute("index"));
 		String operator = formulaElm.getAttribute("operator");
 		List<Variable> variables = parseFormulaVariables(formulaElm);
-		return new ConditionalFormula(index, variables, operator);
+		return new ConditionalFormula(variables, operator);
 	}
 
 	private List<Variable> parseFormulaVariables(Element formulaElm) {
@@ -152,7 +157,8 @@ public class RulesReader {
 					isConstant = true;
 				}
 				String value = variableElm.getAttribute("value");
-				Variable var = new Variable(name, column, isConstant, value);
+				String type = variableElm.getAttribute("type");
+				Variable var = new Variable(name, column, isConstant, value, type);
 				variables.add(var);
 			}
 

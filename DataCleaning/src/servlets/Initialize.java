@@ -16,6 +16,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import data.RulesReader;
+import data.WitnessesManager;
 
 /**
  * Servlet implementation class HellowWorld
@@ -43,8 +44,10 @@ public class Initialize extends HttpServlet {
 			throws ServletException, IOException {
 
 		buildSimpleDB();
-
 		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
+		
+		WitnessesManager witManager = new WitnessesManager(reader.getRules(), m_dbName);
+		witManager.calculateWitnesses();
 		
 		// Set response content type
 		response.setContentType("text/html");
