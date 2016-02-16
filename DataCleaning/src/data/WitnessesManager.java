@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.sun.org.apache.xml.internal.serialize.LineSeparator;
@@ -35,7 +36,12 @@ public class WitnessesManager {
 				extractCGRWitnesses(rule);
 			}
 		}
-		addSourceWitnesses();
+		addProofWitnesses();
+		distinct();
+
+		String info = "========= Witnesses after distinct =========";
+		info += getWitnessesStr();
+		LOGGER.info(info);
 	}
 
 	public List<Rule> getRules() {
@@ -58,6 +64,16 @@ public class WitnessesManager {
 		return getSuspiciousTuples(m_witnesses);
 	}
 
+	public List<Witness> getTupleWitnesses(DBTuple tuple) {
+		List<Witness> tupleWitnesses = new ArrayList<Witness>();
+		for (Witness witness : m_witnesses) {
+			if (witness.getTuples().contains(tuple)) {
+				tupleWitnesses.add(witness);
+			}
+		}
+		return tupleWitnesses;
+	}
+
 	private List<DBTuple> getSuspiciousTuples(List<Witness> witnesses) {
 
 		List<DBTuple> suspicious = new ArrayList<DBTuple>();
@@ -69,6 +85,13 @@ public class WitnessesManager {
 				}
 			}
 		}
+
+		String info = "======== Suspicious tuples ========" + System.lineSeparator();
+		for (DBTuple tuple : suspicious) {
+			info += tuple.toString() + System.lineSeparator();
+			info += getConditionalColumns(tuple).toString() + System.lineSeparator();
+		}
+		LOGGER.info(info);
 		return suspicious;
 	}
 
@@ -187,12 +210,12 @@ public class WitnessesManager {
 		}
 	}
 
-	private void addSourceWitnesses() {
+	private void addProofWitnesses() {
 
 		String info = "";
 		List<DBTuple> currSuspicious = getSuspiciousTuples(m_witnesses);
 
-		LOGGER.info("Adding source witnesses");
+		LOGGER.info("Adding proof witnesses");
 		LOGGER.info("Current suspicious tuples: " + getTuplesListStr(currSuspicious));
 		for (Rule rule : m_rules) {
 			if (!rule.isTupleGenerating()) {
@@ -209,28 +232,29 @@ public class WitnessesManager {
 				if (!suspiciousTuple.getTable().equals(ruleRhsTable) || suspiciousTuple.isAnonymous()) {
 					continue;
 				}
-				
+
 				HashSet<String> rhsDefinedVars = rule.getRHSDefinedVariables();
 				String sql = rule.getSourceQuery();
-				
-				info = "Finding source of the tuple: " + suspiciousTuple.toString() + System.lineSeparator();
+
+				info = "Finding proof of the tuple: " + suspiciousTuple.toString() + System.lineSeparator();
 				info += "By the rule: " + rule.toString() + System.lineSeparator();
 				info += "Using the Query: " + sql + System.lineSeparator();
 				LOGGER.info(info);
-				
+
 				String newSql = "";
 				int paramIndex = 1;
 				for (int j = 0; j < formula.getVariableCount(); j++) {
-					
+
 					Variable var = formula.getVariableAt(j);
 					if (rhsDefinedVars.contains(var.getName())) {
 						continue;
 					}
 
 					info = "The RHS formula: " + formula.toString() + System.lineSeparator();
-					info += "Replacing: " + "$" + paramIndex + " with " + suspiciousTuple.getValue(var.getColumn()) + System.lineSeparator();
+					info += "Replacing: " + "$" + paramIndex + " with " + suspiciousTuple.getValue(var.getColumn())
+							+ System.lineSeparator();
 					info += "Prev SQL query: " + sql + System.lineSeparator();
-					
+
 					if (var.getType().equals("String")) {
 						newSql = sql.replace("$" + paramIndex, "'" + suspiciousTuple.getValue(var.getColumn()) + "'");
 					} else {
@@ -238,10 +262,10 @@ public class WitnessesManager {
 					}
 					info += "Next SQL query: " + newSql + System.lineSeparator();
 					LOGGER.info(info);
-					
+
 					paramIndex++;
 				}
-				
+
 				Connection conn = null;
 				Statement stmt = null;
 				try {
@@ -271,10 +295,32 @@ public class WitnessesManager {
 
 						tuples.add(suspiciousTuple);
 						Witness witness = new Witness(rule, tuples);
-						m_witnesses.add(witness);
+
+						// IF the conditional columns variables of the
+						// suspicious tuple are in the rule RHS defined
+						// variables then don't add the witness
+						List<String> conditionalColumns = getConditionalColumns(suspiciousTuple);
+						List<String> CCVars = new ArrayList<String>();
+						for (int i = 0; i < formula.getVariableCount(); i++) {
+							Variable var = formula.getVariableAt(i);
+							if (!var.isConstant() && conditionalColumns.contains(var.getColumn())) {
+								CCVars.add(var.getName());
+							}
+						}
+						
+						boolean hasLHSDefinedVar = false;
+						for (String var : CCVars) {
+							if (!rhsDefinedVars.contains(var)) {
+								hasLHSDefinedVar = true;
+							}
+						}
+
+						if (hasLHSDefinedVar) {
+							m_witnesses.add(witness);
+						}
 
 						info = System.lineSeparator() + "-------------------------------" + System.lineSeparator();
-						info += "A source of rule: " + rule.toString() + System.lineSeparator();
+						info += "A proof of rule: " + rule.toString() + System.lineSeparator();
 						info += witness.toString() + System.lineSeparator();
 						info += "-------------------------------" + System.lineSeparator();
 						LOGGER.info(info);
@@ -293,39 +339,79 @@ public class WitnessesManager {
 		List<DBTuple> newSuspicious = getSuspiciousTuples(m_witnesses);
 
 		LOGGER.info("New suspicious tuples: " + getTuplesListStr(newSuspicious));
-		if (!tuplesListsEqual(currSuspicious, newSuspicious)) {
+		if (!WitnessesManager.tuplesListsEqual(currSuspicious, newSuspicious)) {
 			LOGGER.info("Current and New are different");
-			addSourceWitnesses();
+			addProofWitnesses();
 		}
 		LOGGER.info("Current and New are the same");
-		
-		//TODO: Every thing is OK just don't add witnesses which exists.
+
 	}
-	
-	private boolean tuplesListsEqual(List<DBTuple> first, List<DBTuple> second) {
-		
+
+	public static boolean tuplesListsEqual(List<DBTuple> first, List<DBTuple> second) {
+
 		for (DBTuple firstListTuple : first) {
-			
+
 			if (!second.contains(firstListTuple)) {
 				return false;
 			}
 		}
-		
+
 		for (DBTuple secondListTuple : second) {
-			
+
 			if (!first.contains(secondListTuple)) {
 				return false;
 			}
-		}		
-		
+		}
+
 		return true;
 	}
 	
+	private List<String> getConditionalColumns(DBTuple suspiciousTuple) {
+		
+		List<String> result = new ArrayList<String>();
+		for (Witness witness : m_witnesses) {
+			if (!witness.getTuples().contains(suspiciousTuple)) {
+				continue;
+			}
+			int tupleRFIndex = witness.getTuples().indexOf(suspiciousTuple);
+			List<String> currConditionalColumns = witness.getRule().getConditionalColumns(tupleRFIndex);
+			for (String column : currConditionalColumns) {
+				if (!result.contains(column)) {
+					result.add(column);
+				}
+			}
+		}
+		
+		return result;
+	}
+
 	private String getTuplesListStr(List<DBTuple> tuples) {
 		String result = System.lineSeparator();
 		for (DBTuple tuple : tuples) {
 			result += tuple.toString() + System.lineSeparator();
 		}
 		return result;
+	}
+
+	private void distinct() {
+		List<Witness> witnesses = new ArrayList<Witness>();
+
+		String warning = System.lineSeparator();
+
+		for (Witness witness : m_witnesses) {
+			warning += witness.toString() + System.lineSeparator();
+		}
+		warning += "===============================================" + System.lineSeparator();
+		for (Witness witness : m_witnesses) {
+			if (!witnesses.contains(witness)) {
+				witnesses.add(witness);
+			}
+		}
+		m_witnesses = witnesses;
+
+		for (Witness witness : m_witnesses) {
+			warning += witness.toString() + System.lineSeparator();
+		}
+		LOGGER.log(Level.WARNING, warning);
 	}
 }
