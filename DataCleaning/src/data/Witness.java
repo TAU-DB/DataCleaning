@@ -33,4 +33,24 @@ public class Witness {
 		result += " }";
 		return result;
 	}
+	
+	@Override
+	public boolean equals(Object o) {
+		Witness witness = (Witness) o;
+		
+		if (!witness.getRule().toString().equals(m_rule.toString())) {
+			return false;
+		}
+		
+		if (!WitnessesManager.tuplesListsEqual(witness.getTuples(), m_tuples)) {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	@Override 
+	public int hashCode() {
+		return 0;
+	}
 }

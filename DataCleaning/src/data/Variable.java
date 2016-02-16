@@ -15,6 +15,12 @@ public class Variable {
 		m_value = value;
 		m_type = type;
 	}
+
+	public void assign(String value) {
+		m_name = value;
+		m_isConstant = true;
+		m_value = value;
+	}
 	
 	public String getName() {
 		return m_name;

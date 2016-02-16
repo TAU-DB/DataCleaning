@@ -27,4 +27,14 @@ public abstract class Formula {
 	public int getVariableCount() {
 		return m_variables.size();
 	}
+	
+	public boolean containsVariable(String varName) {
+		for (int i = 0; i < m_variables.size(); i++) {
+			Variable var = m_variables.get(i);
+			if (!var.isConstant() && var.getName().equals(varName)) {
+				return true;
+			}
+		}
+		return false;
+	}
 }
