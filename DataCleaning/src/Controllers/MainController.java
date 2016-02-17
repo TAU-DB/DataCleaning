@@ -1,8 +1,6 @@
-package servlets;
+package Controllers;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -13,46 +11,39 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import data.Condition;
 import data.ConditionalFormula;
 import data.DBTuple;
 import data.Graph;
 import data.RelationalFormula;
+import data.Rule;
 import data.RulesReader;
 import data.Vertex;
 import data.Witness;
 import data.WitnessesManager;
+import edu.uci.ics.jung.algorithms.scoring.PageRank;
+import edu.uci.ics.jung.graph.DirectedSparseGraph;
 
-/**
- * Servlet implementation class HellowWorld
- */
-@WebServlet("/*")
-public class Initialize extends HttpServlet {
-	private static final long serialVersionUID = 1L;
+public class MainController {
+
+	private static MainController m_instance = null;
+	
 	private String m_dbName = null;
 	private String m_validatedDBName = null;
 	private final static Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
-
-	/**
-	 * @see HttpServlet#HttpServlet()
-	 */
-	public Initialize() {
-		super();
+	
+	public static MainController getInstance() {
+		if (m_instance == null) {
+			m_instance = new MainController();
+		}
+		
+		return m_instance;
+	}
+	
+	private MainController() {
 		LOGGER.setLevel(Level.INFO);
 	}
-
-	/**
-	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse
-	 *      response)
-	 */
-	protected void doGet(HttpServletRequest request, HttpServletResponse response)
-			throws ServletException, IOException {
+	
+	public Graph generateGraph() {
 
 		buildSimpleDB();
 		buildValidatedDB();
@@ -75,40 +66,53 @@ public class Initialize extends HttpServlet {
 		}
 
 		LOGGER.info(graph.toString());
-
-		// Set response content type
-		response.setContentType("text/html");
-
-		// Actual logic goes here.
-		/*
-		 * PrintWriter out = response.getWriter(); String str =
-		 * "<html><head><script type=\"text/javascript\" src=\"WebContent/js/classes.js\"></script>"
-		 * ; str +=
-		 * "<script type=\"text/javascript\" src=\"WebContent/js/jquery.min.js\"></script>"
-		 * ; str +=
-		 * "<script type=\"text/javascript\" src=\"WebContent/js/jquery.qtip-1.0.0-rc3.min.js\"></script>"
-		 * ; str +=
-		 * "</head><body><script type=\"text/javascript\">buildGraph();</script></body></html>"
-		 * ; out.println(str);
-		 */
-		response.getWriter().append("Served at: ").append(request.getContextPath());
+		
+		return graph;
 	}
+	
+	public HashMap<String, Double> calculateRanks(Graph graph) {
+		HashMap<String, Double> ranksMap = new HashMap<String, Double>();
+		
+		DirectedSparseGraph<String, Integer> jungGraph = new DirectedSparseGraph<String, Integer>();
+		for (Vertex v : graph.getVertecis()) {
+			jungGraph.addVertex(v.getID());
+		}
+		
+		int edgeCount = 0;
+		for (Vertex v : graph.getVertecis()) {
+			String srcVertex = v.getID();
+			
+			for (Vertex n : graph.getNeighbors(v)) {
+				String dstVertex = n.getID();
+				jungGraph.addEdge(edgeCount, srcVertex, dstVertex);
+				edgeCount++;
+			}
+		}
+		
+		long start = System.currentTimeMillis() ;
+		PageRank<String, Integer> ranker = new PageRank<String, Integer>(jungGraph, 0.2);
+		ranker.setTolerance(0.001) ;
+		ranker.setMaxIterations(200);
+		ranker.evaluate();
+		
+		String info = System.lineSeparator();
+		info += "Tolerance = " + ranker.getTolerance() + System.lineSeparator();
+		info += "Dump factor = " + (1.00d - ranker.getAlpha()) + System.lineSeparator();
+		info += "Max iterations = " + ranker.getMaxIterations() + System.lineSeparator();
+		info += "PageRank computed in " + (System.currentTimeMillis()-start) + " ms" + System.lineSeparator();
+		
+		for (Vertex v : graph.getVertecis()) {
+			ranksMap.put(v.getID(), ranker.getVertexScore(v.getID()));
+			info += "Tuple: " + v.getID() + " rank: " + ranksMap.get(v.getID()) + System.lineSeparator();
+		}
 
-	/**
-	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse
-	 *      response)
-	 */
-	protected void doPost(HttpServletRequest request, HttpServletResponse response)
-			throws ServletException, IOException {
-		doGet(request, response);
+		LOGGER.info(info);
+		
+		return ranksMap;
 	}
 
 	private void updateGraphEdges(Graph graph, DBTuple suspiciousTuple, Witness tupleWitness) {
-
-		if (tupleWitness.getRule().isTupleGenerating()) {
-			return;
-		}
-
+		
 		for (int i = 0; i < tupleWitness.getTuples().size(); i++) {
 
 			DBTuple currTuple = tupleWitness.getTuples().get(i);
@@ -116,21 +120,82 @@ public class Initialize extends HttpServlet {
 				continue;
 			}
 
-			graph.addEdge(currTuple, suspiciousTuple);
-			/*
-			 * HashMap<String, String> assignment = fillAssignment(tupleWitness,
-			 * currTuple); // find the new rule, put the assignment and try to
-			 * find an assignment for the unchanged variables // if you found
-			 * add edge else don't add edge LOGGER.warning("Assignment = " +
-			 * assignment.toString());
-			 * 
-			 * Condition condition = new Condition(tupleWitness.getRule());
-			 * condition.assign(assignment); if
-			 * (condition.hasSatisfyingAssignment()) { graph.addEdge(currTuple,
-			 * suspiciousTuple); }
-			 */
+			boolean isEdge = false;
+			if (tupleWitness.getRule().isTupleGenerating()) {
+				isEdge = isEdgeByTGR(currTuple, suspiciousTuple, tupleWitness);
+			} else {
+				isEdge = isEdgeByCGR(currTuple, suspiciousTuple, tupleWitness);
+			}
+			
+			if (isEdge) {
+				graph.addEdge(currTuple, suspiciousTuple);
+			}
 		}
 	}
+	
+	private boolean isEdgeByTGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
+		
+		Rule rule = tupleWitness.getRule();
+		if (!rule.isTupleGenerating()) {
+			System.out.println("FATAL in isEdgeByTGR because it's a CGR");
+			System.exit(0);
+		}
+		
+		int indexOfSrcTuple = tupleWitness.getTuples().indexOf(srcTuple);
+		int indexOfDstTuple = tupleWitness.getTuples().indexOf(dstTuple);
+		int witSize = tupleWitness.getTuples().size();
+		
+		if (indexOfSrcTuple == indexOfDstTuple) {
+
+			System.out.println("FATAL in isEdgeByTGR because src tuple and dst tuple are the same");
+			System.exit(0);
+		}
+		
+		// If src tuple is in the RHS and dst tuple is the LHS then it's an edge
+		if ( indexOfSrcTuple == witSize - 1 && 
+				indexOfDstTuple < witSize - 1 && 
+				indexOfDstTuple >= 0) {
+			return true;
+		}
+		
+		// IF both tuples are in the LHS of the rule then it's an edge
+		if (indexOfSrcTuple < witSize - 1 && indexOfSrcTuple >= 0 && 
+				indexOfDstTuple < witSize - 1 && indexOfDstTuple >= 0) {
+			return true;
+		}
+		return false;
+	}
+	
+	private boolean isEdgeByCGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
+		
+		Rule rule = tupleWitness.getRule();
+		if (rule.isTupleGenerating()) {
+			System.out.println("FATAL in isEdgeByCGR because it's a TGR");
+			System.exit(0);
+		}
+		
+		int indexOfSrcTuple = tupleWitness.getTuples().indexOf(srcTuple);
+		int indexOfDstTuple = tupleWitness.getTuples().indexOf(dstTuple);
+		
+		if (indexOfSrcTuple == indexOfDstTuple) {
+
+			System.out.println("FATAL in isEdgeByCGR because src tuple and dst tuple are the same");
+			System.exit(0);
+		}
+		/*
+		 * HashMap<String, String> assignment = fillAssignment(tupleWitness,
+		 * currTuple); // find the new rule, put the assignment and try to
+		 * find an assignment for the unchanged variables // if you found
+		 * add edge else don't add edge LOGGER.warning("Assignment = " +
+		 * assignment.toString());
+		 * 
+		 * Condition condition = new Condition(tupleWitness.getRule());
+		 * condition.assign(assignment); if
+		 * (condition.hasSatisfyingAssignment()) { graph.addEdge(currTuple,
+		 * suspiciousTuple); }
+		 */
+		return true;
+	}	
 
 	private HashMap<String, String> fillAssignment(Witness witness, DBTuple unchanged) {
 		HashMap<String, String> assignment = new HashMap<String, String>();
@@ -420,5 +485,4 @@ public class Initialize extends HttpServlet {
 		}
 		LOGGER.info("Validated database created successfully");
 	}
-
 }

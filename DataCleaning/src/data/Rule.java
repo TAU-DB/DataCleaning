@@ -138,8 +138,8 @@ public class Rule {
 		for (int i = 0; i < relFormula.getVariableCount(); i++) {
 			Variable RFvar = relFormula.getVariableAt(i);
 			if (RFvar.isConstant()) {
-				System.out.println("FATAL");
-				continue;
+				System.exit(0);
+				System.out.println("FATAL in getConditionalColumns");
 			}
 
 			for (Formula formula : formulas) {
