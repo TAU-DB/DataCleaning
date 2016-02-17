@@ -86,7 +86,34 @@ public class Graph {
 				result += "    " + n.getID() + System.lineSeparator(); 
 			}
 		}
+		result += toJSMapStr() + System.lineSeparator(); 
 		result += "=========================" + System.lineSeparator();
+		return result;
+	}
+	
+	public String toJSMapStr() {
+		String result = "{";
+		int vertexIndex = 0;
+		for (Vertex v : m_neighbors.keySet()) {
+			result += "\"" + v.getTuple().toString()  + "\"";
+			result += " : [";
+			for (int i = 0; i < m_neighbors.get(v).size(); i++) {
+				Vertex neighbor = m_neighbors.get(v).get(i);
+				if (i < m_neighbors.get(v).size() - 1) {
+					result += "\"" + neighbor.getTuple().toString()  + "\", ";
+				} else {
+					result += "\"" + neighbor.getTuple().toString()  + "\"";
+				}
+			}
+			result += "]";
+			
+			if (vertexIndex < m_neighbors.keySet().size() - 1) {
+				result += ", ";
+			}
+			
+			vertexIndex ++;
+		}
+		result += "}";
 		return result;
 	}
 }
