@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -87,16 +88,15 @@ public class MainController {
 
 	private MainController() {
 
+		LOGGER.setLevel(Level.OFF);
 		buildSimpleDB();
 		buildValidatedDB();
 
 		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
 		m_rules = reader.getRules();
 		m_witManager = new WitnessesManager(reader.getRules(), m_dbName);
-
-		LOGGER.setLevel(Level.INFO);
 	}
-	
+
 	public String getValidatedDBName() {
 		return m_validatedDBName;
 	}
@@ -163,6 +163,77 @@ public class MainController {
 		return ranksMap;
 	}
 
+	public List<DBTuple> getAnonymousTuples() {
+		List<DBTuple> anonymousTuples = new ArrayList<DBTuple>();
+		List<DBTuple> suspiciousTuples = m_witManager.getSuspiciousTuples();
+		for (DBTuple susTuple : suspiciousTuples) {
+			if (susTuple.isAnonymous()) {
+				anonymousTuples.add(susTuple);
+			}
+		}
+
+		return anonymousTuples;
+	}
+
+	public boolean isAnonymousTupleValidated(DBTuple anonymousTuple) {
+
+		List<Rule> causeRules = m_witManager.getCauseRules(anonymousTuple);
+		for (Rule causeRule : causeRules) {
+
+			HashSet<String> rhsDefinedVars = causeRule.getRHSDefinedVariables();
+			String sql = causeRule.getSourceQuery();
+			RelationalFormula formula = (RelationalFormula) causeRule.getRHSFormulaAt(0);
+			String newSql = "";
+			int paramIndex = 1;
+			for (int j = 0; j < formula.getVariableCount(); j++) {
+
+				Variable var = formula.getVariableAt(j);
+				if (rhsDefinedVars.contains(var.getName())) {
+					continue;
+				}
+
+				if (var.getType().equals("String")) {
+					newSql = sql.replace("$" + paramIndex, "'" + anonymousTuple.getValue(var.getColumn()) + "'");
+				} else {
+					newSql = sql.replace("$" + paramIndex, anonymousTuple.getValue(var.getColumn()));
+				}
+
+				paramIndex++;
+			}
+
+			Connection conn = null;
+			Statement stmt = null;
+			try {
+				Class.forName("org.sqlite.JDBC");
+				conn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+
+				stmt = conn.createStatement();
+				ResultSet rs = stmt.executeQuery(newSql);
+
+				while (rs.next()) {
+					List<DBTuple> tuples = extractTuples(rs, causeRule, false);
+					List<DBTuple> validatedDBTuples = extractValidatedDBTuples(tuples);
+					boolean isLHSValidated = checkLHSValidated(validatedDBTuples, causeRule);
+					if (isLHSValidated) {
+						rs.close();
+						stmt.close();
+						conn.close();
+						return true;
+					}
+				}
+
+				rs.close();
+				stmt.close();
+				conn.close();
+			} catch (Exception e) {
+				System.err.println(e.getClass().getName() + ": " + e.getMessage());
+				System.exit(0);
+			}
+		}
+
+		return false;
+	}
+
 	public void setValidated(DBTuple tuple) {
 
 		if (tuple.isAnonymous()) {
@@ -212,9 +283,8 @@ public class MainController {
 			System.exit(0);
 		}
 
-
 		int rowIndex = getRowIndex(tuple);
-		
+
 		try {
 			Connection dbConn = null;
 			Connection validatedDBConn = null;
@@ -249,10 +319,9 @@ public class MainController {
 			System.exit(0);
 		}
 
-
-		HashMap<String, String> columnToType = getColumnsTypes(tuple);
+		HashMap<String, String> columnToType = getColumnsTypes(tuple.getTable());
 		int rowIndex = getRowIndex(tuple);
-		
+
 		try {
 			Connection dbConn = null;
 			Connection validatedDBConn = null;
@@ -293,6 +362,76 @@ public class MainController {
 		setValidated(newTuple);
 	}
 
+	public void addTuple(DBTuple tuple) {
+
+		if (tuple.isAnonymous()) {
+			System.out.println("FATAL in set validated because tuple is anonymous");
+			System.exit(0);
+		}
+
+		HashMap<String, String> columnToType = getColumnsTypes(tuple.getTable());
+		List<String> tableColumns = getColumns(tuple.getTable());
+
+		try {
+			Connection dbConn = null;
+			Connection validatedDBConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+			validatedDBConn = DriverManager.getConnection("jdbc:sqlite:" + m_validatedDBName);
+
+			stmt = dbConn.createStatement();
+			String sql = "INSERT INTO " + tuple.getTable() + " (";
+			String validatedDBSql = "INSERT INTO " + tuple.getTable() + " (";
+
+			for (int i = 0; i < tableColumns.size(); i++) {
+				String column = tableColumns.get(i);
+				sql += column;
+				validatedDBSql += column;
+				if (i < tableColumns.size() - 1) {
+					sql += ", ";
+					validatedDBSql += ", ";
+				}
+			}
+			sql += ") VALUES (";
+			validatedDBSql += ") VALUES (";
+			
+			for (int i = 0; i < tableColumns.size(); i++) {
+				String column = tableColumns.get(i);
+				String type = columnToType.get(column);
+				if (type.toLowerCase().contains("text") || type.toLowerCase().contains("char")) {
+					sql += "'" + tuple.getValue(column) + "'";
+				} else {
+					sql += tuple.getValue(column);
+				}
+
+				validatedDBSql += "0";
+				
+				if (i < tableColumns.size() - 1) {
+					sql += ", ";
+					validatedDBSql += ", ";
+				}
+			}
+			sql += ");";
+			validatedDBSql += ");";
+			stmt.executeUpdate(sql);
+			stmt.close();
+			
+			stmt = validatedDBConn.createStatement();
+			stmt.executeUpdate(validatedDBSql);
+			stmt.close();
+			
+			dbConn.close();
+			validatedDBConn.close();
+		} catch (Exception e) {
+			System.err.println("In update tuple " + e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		setValidated(tuple);
+	}
+
 	public void updateValidatedDB() {
 
 		boolean rhsValidatedChanged = false;
@@ -312,8 +451,8 @@ public class MainController {
 				ResultSet rs = stmt.executeQuery(sql);
 				while (rs.next()) {
 
-					List<DBTuple> tuples = extractTuples(rs, rule);
-					List<DBTuple> validatedDBTuples = extractValidatedDBTuples(tuples, rule);
+					List<DBTuple> tuples = extractTuples(rs, rule, true);
+					List<DBTuple> validatedDBTuples = extractValidatedDBTuples(tuples);
 					boolean isLHSValidated = checkLHSValidated(validatedDBTuples, rule);
 					if (isLHSValidated) {
 						boolean temp = validateRHS(tuples.get(tuples.size() - 1),
@@ -333,7 +472,7 @@ public class MainController {
 				System.exit(0);
 			}
 		}
-		
+
 		if (rhsValidatedChanged) {
 			updateValidatedDB();
 		}
@@ -373,10 +512,10 @@ public class MainController {
 				}
 				columnIndex++;
 			}
-
 			rs = stmt.executeQuery(sql);
-			rs.next();
-			rowIndex = rs.getInt(1);
+			if (rs.next()) {
+				rowIndex = rs.getInt(1);
+			}
 			rs.close();
 			stmt.close();
 
@@ -386,8 +525,44 @@ public class MainController {
 			e.printStackTrace();
 			System.exit(0);
 		}
-		
+
 		return rowIndex;
+	}
+
+	public List<DBTuple> extractTuples(ResultSet rs, Rule rule, boolean extractRHS) {
+
+		List<DBTuple> result = new ArrayList<DBTuple>();
+		int rsColIndex = 1;
+		for (int i = 0; i < rule.getLHSFormulaCount() + rule.getRHSFormulaCount(); i++) {
+			Formula formula = null;
+			if (i < rule.getLHSFormulaCount()) {
+				formula = rule.getLHSFormulaAt(i);
+			} else {
+				formula = rule.getRHSFormulaAt(i - rule.getLHSFormulaCount());
+			}
+
+			if (!extractRHS && i == rule.getLHSFormulaCount() + rule.getRHSFormulaCount() - 1) {
+				continue;
+			}
+
+			if (formula instanceof ConditionalFormula) {
+				continue;
+			}
+			RelationalFormula relFormula = (RelationalFormula) formula;
+			DBTuple tuple = new DBTuple(relFormula.getTable(), false);
+			for (int varIndex = 0; varIndex < relFormula.getVariableCount(); varIndex++) {
+				Variable var = relFormula.getVariableAt(varIndex);
+				try {
+					tuple.setValue(var.getColumn(), rs.getString(rsColIndex));
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+				rsColIndex++;
+			}
+			result.add(tuple);
+		}
+
+		return result;
 	}
 
 	private boolean validateRHS(DBTuple tuple, DBTuple validatedDBTuple, Rule rule) {
@@ -414,7 +589,7 @@ public class MainController {
 				isValidated = false;
 			}
 		}
-		
+
 		if (isValidated) {
 			return false;
 		}
@@ -436,7 +611,7 @@ public class MainController {
 				}
 			}
 			if (sql.charAt(sql.length() - 1) == ',') {
-				sql = sql.substring(0, sql.length()-1);
+				sql = sql.substring(0, sql.length() - 1);
 			}
 			sql += " WHERE rowid=" + rowIndex + ";";
 			stmt.executeUpdate(sql);
@@ -449,11 +624,11 @@ public class MainController {
 			e.printStackTrace();
 			System.exit(0);
 		}
-		
+
 		return true;
 	}
-	
-	private HashMap<String, String> getColumnsTypes(DBTuple tuple) {
+
+	private HashMap<String, String> getColumnsTypes(String tableName) {
 
 		HashMap<String, String> columnToType = null;
 		try {
@@ -464,7 +639,7 @@ public class MainController {
 
 			columnToType = new HashMap<String, String>();
 			stmt = dbConn.createStatement();
-			String sql = "PRAGMA table_info('" + tuple.getTable() + "');";
+			String sql = "PRAGMA table_info('" + tableName + "');";
 			ResultSet rs = stmt.executeQuery(sql);
 			while (rs.next()) {
 				columnToType.put(rs.getString(2), rs.getString(3));
@@ -478,10 +653,38 @@ public class MainController {
 			e.printStackTrace();
 			System.exit(0);
 		}
-		
+
 		return columnToType;
 	}
-	
+
+	private List<String> getColumns(String tableName) {
+
+		List<String> columns = new ArrayList<String>();
+		try {
+			Connection dbConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+
+			stmt = dbConn.createStatement();
+			String sql = "PRAGMA table_info('" + tableName + "');";
+			ResultSet rs = stmt.executeQuery(sql);
+			while (rs.next()) {
+				columns.add(rs.getString(2));
+			}
+			rs.close();
+			stmt.close();
+
+			dbConn.close();
+		} catch (Exception e) {
+			System.err.println("In update validated DB " + e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		return columns;
+	}
+
 	private boolean checkLHSValidated(List<DBTuple> validatedDBTuples, Rule rule) {
 
 		int relFormulaIndex = 0;
@@ -505,7 +708,7 @@ public class MainController {
 		return true;
 	}
 
-	private List<DBTuple> extractValidatedDBTuples(List<DBTuple> tuples, Rule rule) {
+	private List<DBTuple> extractValidatedDBTuples(List<DBTuple> tuples) {
 		List<DBTuple> result = new ArrayList<DBTuple>();
 
 		for (DBTuple tuple : tuples) {
@@ -538,38 +741,6 @@ public class MainController {
 				e.printStackTrace();
 				System.exit(0);
 			}
-		}
-
-		return result;
-	}
-
-	private List<DBTuple> extractTuples(ResultSet rs, Rule rule) {
-
-		List<DBTuple> result = new ArrayList<DBTuple>();
-		int rsColIndex = 1;
-		for (int i = 0; i < rule.getLHSFormulaCount() + rule.getRHSFormulaCount(); i++) {
-			Formula formula = null;
-			if (i < rule.getLHSFormulaCount()) {
-				formula = rule.getLHSFormulaAt(i);
-			} else {
-				formula = rule.getRHSFormulaAt(i - rule.getLHSFormulaCount());
-			}
-
-			if (formula instanceof ConditionalFormula) {
-				continue;
-			}
-			RelationalFormula relFormula = (RelationalFormula) formula;
-			DBTuple tuple = new DBTuple(relFormula.getTable(), false);
-			for (int varIndex = 0; varIndex < relFormula.getVariableCount(); varIndex++) {
-				Variable var = relFormula.getVariableAt(varIndex);
-				try {
-					tuple.setValue(var.getColumn(), rs.getString(rsColIndex));
-				} catch (SQLException e) {
-					e.printStackTrace();
-				}
-				rsColIndex++;
-			}
-			result.add(tuple);
 		}
 
 		return result;

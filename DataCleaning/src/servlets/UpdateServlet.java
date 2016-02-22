@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
@@ -38,8 +39,8 @@ public class UpdateServlet extends HttpServlet {
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 
-		if (request.getPathInfo().equals("/AddTuple")) {
-			addTuple(request, response);
+		if (request.getPathInfo().equals("/ValidateTuple")) {
+			validateTuple(request, response);
 		}
 
 		if (request.getPathInfo().equals("/DeleteTuple")) {
@@ -49,17 +50,41 @@ public class UpdateServlet extends HttpServlet {
 		if (request.getPathInfo().equals("/UpdateTuple")) {
 			updateTuple(request, response);
 		}
+		
+		if (request.getPathInfo().equals("/AddTuple")) {
+			addTuple(request, response);
+		}
 
 		MainController mainController = MainController.getInstance();
 		mainController.updateValidatedDB();
 		Graph graph = mainController.generateGraph();
+		
+		List<DBTuple> anonymousTuples = mainController.getAnonymousTuples();
+		for (DBTuple anonymousTuple : anonymousTuples) {
+			if (mainController.isAnonymousTupleValidated(anonymousTuple)) {
+				JSONObject result = new JSONObject();
+				result.put("is_graph", "0");
+				result.put("tuple", anonymousTuple.toJSONObject());
+				insertJsonObjectToResponse(result, response);
+				response.setStatus(200);
+				return;
+			}
+		}
+		
 		HashMap<DBTuple, Double> ranks = mainController.calculateRanks(graph);
 		DBTuple maxRankedTuple = MainController.getMaxRankTuple(ranks);
 		
 		JSONObject result = new JSONObject();
-		result.put("graph", graph.toJSONObject());
-		result.put("ranks", MainController.convertRanksMapToJSONObject(ranks));
-		result.put("max", maxRankedTuple.toJSONObject());
+		
+		if (maxRankedTuple == null) {
+			result.put("is_empty", "1");
+		} else {
+			result.put("is_empty", "0");
+			result.put("is_graph", "1");
+			result.put("graph", graph.toJSONObject());
+			result.put("ranks", MainController.convertRanksMapToJSONObject(ranks));
+			result.put("max", maxRankedTuple.toJSONObject());
+		}
 		insertJsonObjectToResponse(result, response);
 		response.setStatus(200);
 	}
@@ -72,7 +97,7 @@ public class UpdateServlet extends HttpServlet {
 	}
 
 	
-	private void addTuple(HttpServletRequest request, HttpServletResponse response) {
+	private void validateTuple(HttpServletRequest request, HttpServletResponse response) {
 
 		MainController mainController = MainController.getInstance();
 		
@@ -130,6 +155,24 @@ public class UpdateServlet extends HttpServlet {
 		info += "Updated the tuple: " + tuple.toString() + System.lineSeparator();
 		info += "With the tuple: " + newTuple.toString() + System.lineSeparator(); 
 		LOGGER.info(info);
+	}
+	
+	private void addTuple(HttpServletRequest request, HttpServletResponse response) {
+
+		MainController mainController = MainController.getInstance();
+		
+		String tableName = request.getParameter("table_name");
+		String[] tableColumns = request.getParameterValues("table_columns[]");
+		String[] tupleValues = request.getParameterValues("tuple_values[]");
+		
+		DBTuple tuple = new DBTuple(tableName, false);
+		for (int i = 0; i < tableColumns.length; i++) {
+			tuple.setValue(tableColumns[i], tupleValues[i]);
+		}
+		
+		mainController.addTuple(tuple);
+		
+		LOGGER.info("Added and Validated the tuple: " + tuple.toString());
 	}
 	
 	private void insertJsonObjectToResponse(JSONObject obj,
