@@ -2,8 +2,9 @@
 
 function buildGraph(graphMap, ranks) {
 	$(document).ready(function() {
-		var width = $(document).width();
-		var height = $(document).height();
+		$("#graph_canvas").empty();
+		var width = $("#graph_canvas").width();
+		var height = $("#graph_canvas").height();
 		var g = new Graph();
 		g.edgeFactory.template.style.directed = true;
 
@@ -38,7 +39,7 @@ function buildGraph(graphMap, ranks) {
 
 		var layouter = new Graph.Layout.Fixed(g);
 		layouter.layout();
-		var renderer = new Graph.Renderer.Raphael('canvas', g, width, height);
+		var renderer = new Graph.Renderer.Raphael('graph_canvas', g, width, height);
 		renderer.draw();
 	});
 }

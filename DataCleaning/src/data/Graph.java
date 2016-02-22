@@ -5,6 +5,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+
 public class Graph {
 
 	private HashMap<Vertex, List<Vertex>> m_neighbors;
@@ -114,6 +117,22 @@ public class Graph {
 			vertexIndex ++;
 		}
 		result += "}";
+		return result;
+	}
+	
+	public JSONObject toJSONObject() {
+		
+		JSONObject result = new JSONObject();
+
+		for (Vertex v : m_neighbors.keySet()) {
+			JSONArray neighborsArray = new JSONArray();
+			for (int i = 0; i < m_neighbors.get(v).size(); i++) {
+				Vertex neighbor = m_neighbors.get(v).get(i);
+				neighborsArray.add(neighbor.getID());
+			}
+			result.put(v.getID(), neighborsArray);
+		}
+		
 		return result;
 	}
 }

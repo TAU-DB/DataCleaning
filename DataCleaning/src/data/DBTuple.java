@@ -3,6 +3,8 @@ package data;
 import java.util.HashMap;
 import java.util.Set;
 
+import org.json.simple.JSONObject;
+
 public class DBTuple {
 	
 	private String m_table;
@@ -70,4 +72,38 @@ public class DBTuple {
 	public int hashCode() {
 		return 0;
 	}
+	
+	public String getJSMapStr() {
+
+		String result = "{";
+		result += "table_name : " + "\"" + m_table + "\"" + ", ";
+		result += "is_anonymous : " + (isAnonymous() ? 1 : 0) + ", ";
+		result += "columns : {";
+		int columnIndex = 0;
+		for (String column : m_values.keySet()) {
+			result += "\"" + column + "\"";
+			result += " : " + "\"" + m_values.get(column) + "\"";
+
+			if (columnIndex < m_values.keySet().size() - 1) {
+				result += ", ";
+			}
+			columnIndex++;
+		}
+		result += "} }";
+		return result;
+	}
+	
+	public JSONObject toJSONObject() {
+
+		JSONObject result = new JSONObject();
+		result.put("table_name", m_table);
+		result.put("is_anonymous", isAnonymous() ? 1 : 0);
+		JSONObject columns = new JSONObject();
+		for (String column : m_values.keySet()) {
+			columns.put(column, m_values.get(column));
+		}
+		result.put("columns", columns);
+		return result;
+	}
+	
 }

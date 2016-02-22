@@ -8,13 +8,15 @@ public class Rule {
 
 	private String m_type;
 	private String m_falseQuery;
+	private String m_trueQuery;
 	private String m_sourceQuery;
 	private List<Formula> m_lhs;
 	private List<Formula> m_rhs;
 
-	public Rule(String type, String falseQuery, String sourceQuery, List<Formula> lhs, List<Formula> rhs) {
+	public Rule(String type, String falseQuery, String trueQuery, String sourceQuery, List<Formula> lhs, List<Formula> rhs) {
 		m_type = type;
 		m_falseQuery = falseQuery;
+		m_trueQuery = trueQuery;
 		m_sourceQuery = sourceQuery;
 		m_lhs = lhs;
 		m_rhs = rhs;
@@ -29,6 +31,10 @@ public class Rule {
 
 	public String getFalseQuery() {
 		return m_falseQuery;
+	}
+
+	public String getTrueQuery() {
+		return m_trueQuery;
 	}
 
 	public String getSourceQuery() {
@@ -79,7 +85,7 @@ public class Rule {
 
 		String result = toString() + System.lineSeparator();
 
-		result += m_falseQuery + System.lineSeparator() + m_sourceQuery + System.lineSeparator() + "LHS variables:"
+		result += m_falseQuery + System.lineSeparator() + m_trueQuery + System.lineSeparator() + m_sourceQuery + System.lineSeparator() + "LHS variables:"
 				+ System.lineSeparator();
 		for (Formula formula : m_lhs) {
 			for (int i = 0; i < formula.getVariableCount(); i++) {
