@@ -1,3 +1,4 @@
+<%@page import="data.DBTuple"%>
 <%@page import="java.util.HashMap"%>
 <%@page import="data.Graph"%>
 <%@page import="Controllers.MainController"%>
@@ -10,36 +11,53 @@
 <script type="text/javascript" src="js/raphael-min.js"></script>
 <script type="text/javascript" src="js/dracula_graffle.js"></script>
 <script type="text/javascript" src="js/jquery-1.4.2.min.js"></script>
+<script type="text/javascript" src="js/jquery.qtip-1.0.0-rc3.min.js"></script>
 <script type="text/javascript" src="js/dracula_graph.js"></script>
 <script type="text/javascript" src="js/dracula_algorithms.js"></script>
 <script type="text/javascript" src="js/graphViewer.js"></script>
-<title>Insert title here</title>
+<script type="text/javascript" src="js/index.js"></script>
+<link rel="stylesheet" type="text/css" href="css/table.css">
+<link rel="stylesheet" type="text/css" href="css/index.css">
+<link rel="stylesheet" type="text/css" href="css/buttons.css">
+<title>Data Cleaning</title>
 </head>
 <body>
 	<%
 		MainController mainController = MainController.getInstance();
 		Graph graph = mainController.generateGraph();
-		HashMap<String, Double> ranks = mainController.calculateRanks(graph);
-		
-		String ranksMapStr = "{";
-		int vertexIndex = 0;
-		for (String v : ranks.keySet()) {
-			ranksMapStr += "\"" + v + "\"";
-			ranksMapStr += " : " + ranks.get(v);
-			
-			if (vertexIndex < ranks.keySet().size() - 1) {
-				ranksMapStr += ", ";
-			}
-			vertexIndex ++;
-		}
-		ranksMapStr += "}";
+		HashMap<DBTuple, Double> ranks = mainController.calculateRanks(graph);
+		String ranksMapStr = MainController.convertRanksMapToStr(ranks);
+		DBTuple maxRankedTuple = MainController.getMaxRankTuple(ranks);
 	%>
-	This is a page a simple page
-	<div id="canvas"></div>
-	<script type="text/javascript">
-		var g = <%=graph.toJSMapStr()%>
-		var ranks = <%=ranksMapStr%>
-		buildGraph(g, ranks);
-	</script>
 </body>
+<center>
+	<h2 id="graph_title">Tuples Graph</h2>
+</center>
+<div id="graph_canvas"
+	style="">
+</div>
+
+<h2 id="table_title">Question:</h2>
+
+<table id="question_table" class="table-fill">
+</table>
+
+<div id="buttons">
+	<a href="#" onclick="addTupleRequest();return false;" class="btn green">Add&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a> 
+	<a href="#" onclick="deleteTupleRequest();return false;" class="btn red">Delete&nbsp;&nbsp;&nbsp;&nbsp;</a> 
+	<a href="#" onclick="updateTupleRequest();return false;" class="btn orange">Update&nbsp;&nbsp;&nbsp;&nbsp;</a> 
+</div>
+<script type="text/javascript">
+	var g =
+<%=graph.toJSMapStr()%>
+	;
+	var ranks =
+<%=ranksMapStr%>
+	;
+	var maxTupleStr =
+<%=maxRankedTuple.getJSMapStr()%>
+	;
+	buildGraph(g, ranks);
+	updateQuestionTable(maxTupleStr);
+</script>
 </html>

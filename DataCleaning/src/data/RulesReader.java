@@ -80,6 +80,13 @@ public class RulesReader {
 			NodeList queryNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm, XPathConstants.NODESET);
 			String falseQuery = queryNodeList.item(0).getTextContent();
 			
+			expression = "./true_query";
+			queryNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm, XPathConstants.NODESET);
+			String trueQuery = "";
+			if (queryNodeList.getLength() > 0) {
+				trueQuery = queryNodeList.item(0).getTextContent();
+			}
+			
 			expression = "./source_query";
 			queryNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm, XPathConstants.NODESET);
 			String sourceQuery = "";
@@ -117,7 +124,7 @@ public class RulesReader {
 				rhs.add(formula);
 			}			
 			
-			return new Rule(type, falseQuery, sourceQuery, lhs, rhs);
+			return new Rule(type, falseQuery, trueQuery, sourceQuery, lhs, rhs);
 		} catch (XPathExpressionException e) {
 			e.printStackTrace();
 		}

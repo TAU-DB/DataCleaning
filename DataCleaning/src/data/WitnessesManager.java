@@ -14,6 +14,8 @@ import java.util.logging.Logger;
 
 import com.sun.org.apache.xml.internal.serialize.LineSeparator;
 
+import Controllers.MainController;
+
 public class WitnessesManager {
 
 	private List<Witness> m_witnesses;
@@ -29,6 +31,7 @@ public class WitnessesManager {
 
 	public void calculateWitnesses() {
 
+		m_witnesses.clear();
 		for (Rule rule : m_rules) {
 			if (rule.isTupleGenerating()) {
 				extractTGRWitnesses(rule);
@@ -80,7 +83,47 @@ public class WitnessesManager {
 
 		for (Witness witness : witnesses) {
 			for (DBTuple tuple : witness.getTuples()) {
-				if (!suspicious.contains(tuple)) {
+				
+				//Fix this case 
+				if (!suspicious.contains(tuple) && tuple.isAnonymous()) {
+					suspicious.add(tuple);
+					continue;
+				}
+				if (tuple.isAnonymous()) {
+					continue;
+				}
+				
+				MainController mainController = MainController.getInstance();
+				List<String> conditionalColumns = getConditionalColumns(tuple);
+				int rowIndex = mainController.getRowIndex(tuple);
+				boolean isValidated = true;
+
+				try {
+					Connection validatedDBConn = null;
+					Statement stmt = null;
+					Class.forName("org.sqlite.JDBC");
+					validatedDBConn = DriverManager.getConnection("jdbc:sqlite:" + mainController.getValidatedDBName());
+
+					stmt = validatedDBConn.createStatement();
+					String sql = "SELECT * FROM " + tuple.getTable() + " WHERE rowid = " + rowIndex + ";";
+					ResultSet rs = stmt.executeQuery(sql);
+					rs.next();
+					for (String conColumn : conditionalColumns) {
+						if (rs.getString(conColumn).equals("0")) {
+							isValidated = false;
+						}
+					}
+					rs.close();
+					stmt.close();
+					
+					validatedDBConn.close();
+				} catch (Exception e) {
+					System.err.println("In update validated DB " + e.getClass().getName() + ": " + e.getMessage());
+					e.printStackTrace();
+					System.exit(0);
+				}
+				
+				if (!suspicious.contains(tuple) && !isValidated) {
 					suspicious.add(tuple);
 				}
 			}

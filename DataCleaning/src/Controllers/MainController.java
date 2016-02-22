@@ -4,6 +4,7 @@ import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,12 +12,16 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.json.simple.JSONObject;
+
 import data.ConditionalFormula;
 import data.DBTuple;
+import data.Formula;
 import data.Graph;
 import data.RelationalFormula;
 import data.Rule;
 import data.RulesReader;
+import data.Variable;
 import data.Vertex;
 import data.Witness;
 import data.WitnessesManager;
@@ -25,40 +30,87 @@ import edu.uci.ics.jung.graph.DirectedSparseGraph;
 
 public class MainController {
 
+	public static String convertRanksMapToStr(HashMap<DBTuple, Double> ranksMap) {
+		String ranksMapStr = "{";
+		int vertexIndex = 0;
+		for (DBTuple tuple : ranksMap.keySet()) {
+			ranksMapStr += "\"" + tuple.toString() + "\"";
+			ranksMapStr += " : " + ranksMap.get(tuple);
+
+			if (vertexIndex < ranksMap.keySet().size() - 1) {
+				ranksMapStr += ", ";
+			}
+			vertexIndex++;
+		}
+		ranksMapStr += "}";
+		return ranksMapStr;
+	}
+
+	public static JSONObject convertRanksMapToJSONObject(HashMap<DBTuple, Double> ranksMap) {
+		JSONObject result = new JSONObject();
+		for (DBTuple tuple : ranksMap.keySet()) {
+			result.put(tuple.toString(), ranksMap.get(tuple));
+		}
+		return result;
+	}
+
+	public static DBTuple getMaxRankTuple(HashMap<DBTuple, Double> ranksMap) {
+
+		Double maxRank = 0.0;
+		DBTuple maxTuple = null;
+		for (DBTuple tuple : ranksMap.keySet()) {
+
+			Double currRank = ranksMap.get(tuple);
+			if (currRank > maxRank) {
+				maxRank = currRank;
+				maxTuple = tuple;
+			}
+		}
+		return maxTuple;
+	}
+
 	private static MainController m_instance = null;
-	
+
 	private String m_dbName = null;
+	private List<Rule> m_rules;
+	private WitnessesManager m_witManager = null;
 	private String m_validatedDBName = null;
 	private final static Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
-	
+
 	public static MainController getInstance() {
 		if (m_instance == null) {
 			m_instance = new MainController();
 		}
-		
+
 		return m_instance;
 	}
-	
+
 	private MainController() {
-		LOGGER.setLevel(Level.INFO);
-	}
-	
-	public Graph generateGraph() {
 
 		buildSimpleDB();
 		buildValidatedDB();
-		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
 
-		WitnessesManager witManager = new WitnessesManager(reader.getRules(), m_dbName);
-		witManager.calculateWitnesses();
+		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
+		m_rules = reader.getRules();
+		m_witManager = new WitnessesManager(reader.getRules(), m_dbName);
+
+		LOGGER.setLevel(Level.INFO);
+	}
+	
+	public String getValidatedDBName() {
+		return m_validatedDBName;
+	}
+
+	public Graph generateGraph() {
+		m_witManager.calculateWitnesses();
 
 		Graph graph = new Graph();
-		List<DBTuple> suspiciousTuples = witManager.getSuspiciousTuples();
+		List<DBTuple> suspiciousTuples = m_witManager.getSuspiciousTuples();
 		for (DBTuple tuple : suspiciousTuples) {
 			graph.addVertex(new Vertex(tuple));
 		}
 		for (DBTuple tuple : suspiciousTuples) {
-			List<Witness> tupleWitnesses = witManager.getTupleWitnesses(tuple);
+			List<Witness> tupleWitnesses = m_witManager.getTupleWitnesses(tuple);
 
 			for (Witness tupleWitness : tupleWitnesses) {
 				updateGraphEdges(graph, tuple, tupleWitness);
@@ -66,53 +118,465 @@ public class MainController {
 		}
 
 		LOGGER.info(graph.toString());
-		
+
 		return graph;
 	}
-	
-	public HashMap<String, Double> calculateRanks(Graph graph) {
-		HashMap<String, Double> ranksMap = new HashMap<String, Double>();
-		
+
+	public HashMap<DBTuple, Double> calculateRanks(Graph graph) {
+		HashMap<DBTuple, Double> ranksMap = new HashMap<DBTuple, Double>();
+
 		DirectedSparseGraph<String, Integer> jungGraph = new DirectedSparseGraph<String, Integer>();
 		for (Vertex v : graph.getVertecis()) {
 			jungGraph.addVertex(v.getID());
 		}
-		
+
 		int edgeCount = 0;
 		for (Vertex v : graph.getVertecis()) {
 			String srcVertex = v.getID();
-			
+
 			for (Vertex n : graph.getNeighbors(v)) {
 				String dstVertex = n.getID();
 				jungGraph.addEdge(edgeCount, srcVertex, dstVertex);
 				edgeCount++;
 			}
 		}
-		
-		long start = System.currentTimeMillis() ;
+
+		long start = System.currentTimeMillis();
 		PageRank<String, Integer> ranker = new PageRank<String, Integer>(jungGraph, 0.2);
-		ranker.setTolerance(0.001) ;
+		ranker.setTolerance(0.001);
 		ranker.setMaxIterations(200);
 		ranker.evaluate();
-		
+
 		String info = System.lineSeparator();
 		info += "Tolerance = " + ranker.getTolerance() + System.lineSeparator();
 		info += "Dump factor = " + (1.00d - ranker.getAlpha()) + System.lineSeparator();
 		info += "Max iterations = " + ranker.getMaxIterations() + System.lineSeparator();
-		info += "PageRank computed in " + (System.currentTimeMillis()-start) + " ms" + System.lineSeparator();
-		
+		info += "PageRank computed in " + (System.currentTimeMillis() - start) + " ms" + System.lineSeparator();
+
 		for (Vertex v : graph.getVertecis()) {
-			ranksMap.put(v.getID(), ranker.getVertexScore(v.getID()));
-			info += "Tuple: " + v.getID() + " rank: " + ranksMap.get(v.getID()) + System.lineSeparator();
+			ranksMap.put(v.getTuple(), ranker.getVertexScore(v.getID()));
+			info += "Tuple: " + v.getID() + " rank: " + ranksMap.get(v.getTuple()) + System.lineSeparator();
 		}
 
 		LOGGER.info(info);
-		
+
 		return ranksMap;
 	}
 
-	private void updateGraphEdges(Graph graph, DBTuple suspiciousTuple, Witness tupleWitness) {
+	public void setValidated(DBTuple tuple) {
+
+		if (tuple.isAnonymous()) {
+			System.out.println("FATAL in set validated because tuple is anonymous");
+			System.exit(0);
+		}
+
+		int rowIndex = getRowIndex(tuple);
+		try {
+			Connection dbConn = null;
+			Connection validatedDBConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+			validatedDBConn = DriverManager.getConnection("jdbc:sqlite:" + m_validatedDBName);
+
+			stmt = validatedDBConn.createStatement();
+			String sql = "UPDATE " + tuple.getTable() + " SET ";
+			int columnIndex = 0;
+			for (String column : tuple.getColumns()) {
+				sql += column + "=1";
+
+				if (columnIndex < tuple.getColumns().size() - 1) {
+					sql += ", ";
+				}
+				columnIndex++;
+			}
+			sql += " WHERE rowid=" + rowIndex + ";";
+
+			stmt.executeUpdate(sql);
+			stmt.close();
+
+			dbConn.close();
+			validatedDBConn.close();
+		} catch (Exception e) {
+			System.err.println("In set validated " + e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+	}
+
+	public void deleteTuple(DBTuple tuple) {
+
+		if (tuple.isAnonymous()) {
+			System.out.println("FATAL in set validated because tuple is anonymous");
+			System.exit(0);
+		}
+
+
+		int rowIndex = getRowIndex(tuple);
 		
+		try {
+			Connection dbConn = null;
+			Connection validatedDBConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+			validatedDBConn = DriverManager.getConnection("jdbc:sqlite:" + m_validatedDBName);
+
+			stmt = dbConn.createStatement();
+			String sql = "DELETE FROM " + tuple.getTable() + " WHERE rowid=" + rowIndex + ";";
+			stmt.executeUpdate(sql);
+			stmt.close();
+
+			stmt = validatedDBConn.createStatement();
+			sql = "DELETE FROM " + tuple.getTable() + " WHERE rowid=" + rowIndex + ";";
+			stmt.executeUpdate(sql);
+			stmt.close();
+
+			dbConn.close();
+			validatedDBConn.close();
+		} catch (Exception e) {
+			System.err.println("In delete tuple " + e.getClass().getName() + ": " + e.getMessage());
+			System.exit(0);
+		}
+
+	}
+
+	public void updateTuple(DBTuple tuple, DBTuple newTuple) {
+
+		if (tuple.isAnonymous()) {
+			System.out.println("FATAL in set validated because tuple is anonymous");
+			System.exit(0);
+		}
+
+
+		HashMap<String, String> columnToType = getColumnsTypes(tuple);
+		int rowIndex = getRowIndex(tuple);
+		
+		try {
+			Connection dbConn = null;
+			Connection validatedDBConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+			validatedDBConn = DriverManager.getConnection("jdbc:sqlite:" + m_validatedDBName);
+
+			stmt = dbConn.createStatement();
+			String sql = "UPDATE " + tuple.getTable() + " SET ";
+			int columnIndex = 0;
+			for (String column : tuple.getColumns()) {
+				String type = columnToType.get(column);
+				if (type.toLowerCase().contains("text") || type.toLowerCase().contains("char")) {
+					sql += column + "=" + "'" + newTuple.getValue(column) + "'";
+				} else {
+					sql += column + "=" + "" + newTuple.getValue(column);
+				}
+
+				if (columnIndex < tuple.getColumns().size() - 1) {
+					sql += ", ";
+				}
+				columnIndex++;
+			}
+			sql += " WHERE rowid=" + rowIndex + ";";
+
+			stmt.executeUpdate(sql);
+			stmt.close();
+
+			dbConn.close();
+			validatedDBConn.close();
+		} catch (Exception e) {
+			System.err.println("In update tuple " + e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		setValidated(newTuple);
+	}
+
+	public void updateValidatedDB() {
+
+		boolean rhsValidatedChanged = false;
+		for (Rule rule : m_rules) {
+			if (!rule.isTupleGenerating()) {
+				continue;
+			}
+
+			try {
+				Connection dbConn = null;
+				Statement stmt = null;
+				Class.forName("org.sqlite.JDBC");
+				dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+
+				stmt = dbConn.createStatement();
+				String sql = rule.getTrueQuery();
+				ResultSet rs = stmt.executeQuery(sql);
+				while (rs.next()) {
+
+					List<DBTuple> tuples = extractTuples(rs, rule);
+					List<DBTuple> validatedDBTuples = extractValidatedDBTuples(tuples, rule);
+					boolean isLHSValidated = checkLHSValidated(validatedDBTuples, rule);
+					if (isLHSValidated) {
+						boolean temp = validateRHS(tuples.get(tuples.size() - 1),
+								validatedDBTuples.get(validatedDBTuples.size() - 1), rule);
+						if (temp) {
+							rhsValidatedChanged = true;
+						}
+					}
+				}
+				rs.close();
+				stmt.close();
+
+				dbConn.close();
+			} catch (Exception e) {
+				System.err.println("In update validated DB " + e.getClass().getName() + ": " + e.getMessage());
+				e.printStackTrace();
+				System.exit(0);
+			}
+		}
+		
+		if (rhsValidatedChanged) {
+			updateValidatedDB();
+		}
+	}
+
+	public int getRowIndex(DBTuple tuple) {
+		int rowIndex = -1;
+		try {
+			Connection dbConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+
+			HashMap<String, String> columnToType = new HashMap<String, String>();
+			stmt = dbConn.createStatement();
+			String sql = "PRAGMA table_info('" + tuple.getTable() + "');";
+			ResultSet rs = stmt.executeQuery(sql);
+			while (rs.next()) {
+				columnToType.put(rs.getString(2), rs.getString(3));
+			}
+			rs.close();
+			stmt.close();
+
+			stmt = dbConn.createStatement();
+			sql = "SELECT rowid FROM " + tuple.getTable() + " WHERE ";
+			int columnIndex = 0;
+			for (String column : tuple.getColumns()) {
+				String type = columnToType.get(column);
+				if (type.toLowerCase().contains("text") || type.toLowerCase().contains("char")) {
+					sql += column + "=" + "'" + tuple.getValue(column) + "'";
+				} else {
+					sql += column + "=" + "" + tuple.getValue(column);
+				}
+
+				if (columnIndex < tuple.getColumns().size() - 1) {
+					sql += " AND ";
+				}
+				columnIndex++;
+			}
+
+			rs = stmt.executeQuery(sql);
+			rs.next();
+			rowIndex = rs.getInt(1);
+			rs.close();
+			stmt.close();
+
+			dbConn.close();
+		} catch (Exception e) {
+			System.err.println("In update validated DB " + e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}
+		
+		return rowIndex;
+	}
+
+	private boolean validateRHS(DBTuple tuple, DBTuple validatedDBTuple, Rule rule) {
+
+		int currRFIndex = 0;
+		for (int i = 0; i < rule.getLHSFormulaCount() + rule.getRHSFormulaCount(); i++) {
+			Formula formula = null;
+			if (i < rule.getLHSFormulaCount()) {
+				formula = rule.getLHSFormulaAt(i);
+			} else {
+				formula = rule.getRHSFormulaAt(i - rule.getLHSFormulaCount());
+			}
+
+			if (formula instanceof ConditionalFormula) {
+				continue;
+			}
+			currRFIndex++;
+		}
+
+		List<String> conditionalColumns = rule.getConditionalColumns(currRFIndex - 1);
+		boolean isValidated = true;
+		for (String column : conditionalColumns) {
+			if (validatedDBTuple.getValue(column).equals("0")) {
+				isValidated = false;
+			}
+		}
+		
+		if (isValidated) {
+			return false;
+		}
+
+		int rowIndex = getRowIndex(tuple);
+		try {
+			Connection dbConn = null;
+			Connection validatedDBConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+			validatedDBConn = DriverManager.getConnection("jdbc:sqlite:" + m_validatedDBName);
+
+			stmt = validatedDBConn.createStatement();
+			String sql = "UPDATE " + tuple.getTable() + " SET ";
+			for (String column : tuple.getColumns()) {
+				if (conditionalColumns.contains(column)) {
+					sql += column + "=1,";
+				}
+			}
+			if (sql.charAt(sql.length() - 1) == ',') {
+				sql = sql.substring(0, sql.length()-1);
+			}
+			sql += " WHERE rowid=" + rowIndex + ";";
+			stmt.executeUpdate(sql);
+			stmt.close();
+
+			dbConn.close();
+			validatedDBConn.close();
+		} catch (Exception e) {
+			System.err.println("In update validated DB " + e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}
+		
+		return true;
+	}
+	
+	private HashMap<String, String> getColumnsTypes(DBTuple tuple) {
+
+		HashMap<String, String> columnToType = null;
+		try {
+			Connection dbConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+
+			columnToType = new HashMap<String, String>();
+			stmt = dbConn.createStatement();
+			String sql = "PRAGMA table_info('" + tuple.getTable() + "');";
+			ResultSet rs = stmt.executeQuery(sql);
+			while (rs.next()) {
+				columnToType.put(rs.getString(2), rs.getString(3));
+			}
+			rs.close();
+			stmt.close();
+
+			dbConn.close();
+		} catch (Exception e) {
+			System.err.println("In update validated DB " + e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}
+		
+		return columnToType;
+	}
+	
+	private boolean checkLHSValidated(List<DBTuple> validatedDBTuples, Rule rule) {
+
+		int relFormulaIndex = 0;
+		for (int i = 0; i < rule.getLHSFormulaCount(); i++) {
+			Formula formula = rule.getLHSFormulaAt(i);
+			if (formula instanceof ConditionalFormula) {
+				continue;
+			}
+
+			DBTuple formulaTuple = validatedDBTuples.get(relFormulaIndex);
+			List<String> conditionalColumns = rule.getConditionalColumns(relFormulaIndex);
+			for (String conColumn : conditionalColumns) {
+				if (formulaTuple.getValue(conColumn).equals("0")) {
+					return false;
+				}
+			}
+
+			relFormulaIndex++;
+		}
+
+		return true;
+	}
+
+	private List<DBTuple> extractValidatedDBTuples(List<DBTuple> tuples, Rule rule) {
+		List<DBTuple> result = new ArrayList<DBTuple>();
+
+		for (DBTuple tuple : tuples) {
+
+			int rowIndex = getRowIndex(tuple);
+			try {
+				Connection dbConn = null;
+				Connection validatedDBConn = null;
+				Statement stmt = null;
+				Class.forName("org.sqlite.JDBC");
+				dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+				validatedDBConn = DriverManager.getConnection("jdbc:sqlite:" + m_validatedDBName);
+
+				stmt = validatedDBConn.createStatement();
+				String sql = "SELECT * FROM " + tuple.getTable() + " WHERE rowid = " + rowIndex + ";";
+				ResultSet rs = stmt.executeQuery(sql);
+				rs.next();
+				DBTuple validatedDBTuple = new DBTuple(tuple.getTable(), false);
+				for (String column : tuple.getColumns()) {
+					validatedDBTuple.setValue(column, rs.getString(column));
+				}
+				result.add(validatedDBTuple);
+				rs.close();
+				stmt.close();
+
+				dbConn.close();
+				validatedDBConn.close();
+			} catch (Exception e) {
+				System.err.println("In update validated DB " + e.getClass().getName() + ": " + e.getMessage());
+				e.printStackTrace();
+				System.exit(0);
+			}
+		}
+
+		return result;
+	}
+
+	private List<DBTuple> extractTuples(ResultSet rs, Rule rule) {
+
+		List<DBTuple> result = new ArrayList<DBTuple>();
+		int rsColIndex = 1;
+		for (int i = 0; i < rule.getLHSFormulaCount() + rule.getRHSFormulaCount(); i++) {
+			Formula formula = null;
+			if (i < rule.getLHSFormulaCount()) {
+				formula = rule.getLHSFormulaAt(i);
+			} else {
+				formula = rule.getRHSFormulaAt(i - rule.getLHSFormulaCount());
+			}
+
+			if (formula instanceof ConditionalFormula) {
+				continue;
+			}
+			RelationalFormula relFormula = (RelationalFormula) formula;
+			DBTuple tuple = new DBTuple(relFormula.getTable(), false);
+			for (int varIndex = 0; varIndex < relFormula.getVariableCount(); varIndex++) {
+				Variable var = relFormula.getVariableAt(varIndex);
+				try {
+					tuple.setValue(var.getColumn(), rs.getString(rsColIndex));
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+				rsColIndex++;
+			}
+			result.add(tuple);
+		}
+
+		return result;
+	}
+
+	private void updateGraphEdges(Graph graph, DBTuple suspiciousTuple, Witness tupleWitness) {
+
 		for (int i = 0; i < tupleWitness.getTuples().size(); i++) {
 
 			DBTuple currTuple = tupleWitness.getTuples().get(i);
@@ -126,57 +590,55 @@ public class MainController {
 			} else {
 				isEdge = isEdgeByCGR(currTuple, suspiciousTuple, tupleWitness);
 			}
-			
+
 			if (isEdge) {
 				graph.addEdge(currTuple, suspiciousTuple);
 			}
 		}
 	}
-	
+
 	private boolean isEdgeByTGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
-		
+
 		Rule rule = tupleWitness.getRule();
 		if (!rule.isTupleGenerating()) {
 			System.out.println("FATAL in isEdgeByTGR because it's a CGR");
 			System.exit(0);
 		}
-		
+
 		int indexOfSrcTuple = tupleWitness.getTuples().indexOf(srcTuple);
 		int indexOfDstTuple = tupleWitness.getTuples().indexOf(dstTuple);
 		int witSize = tupleWitness.getTuples().size();
-		
+
 		if (indexOfSrcTuple == indexOfDstTuple) {
 
 			System.out.println("FATAL in isEdgeByTGR because src tuple and dst tuple are the same");
 			System.exit(0);
 		}
-		
+
 		// If src tuple is in the RHS and dst tuple is the LHS then it's an edge
-		if ( indexOfSrcTuple == witSize - 1 && 
-				indexOfDstTuple < witSize - 1 && 
-				indexOfDstTuple >= 0) {
+		if (indexOfSrcTuple == witSize - 1 && indexOfDstTuple < witSize - 1 && indexOfDstTuple >= 0) {
 			return true;
 		}
-		
+
 		// IF both tuples are in the LHS of the rule then it's an edge
-		if (indexOfSrcTuple < witSize - 1 && indexOfSrcTuple >= 0 && 
-				indexOfDstTuple < witSize - 1 && indexOfDstTuple >= 0) {
+		if (indexOfSrcTuple < witSize - 1 && indexOfSrcTuple >= 0 && indexOfDstTuple < witSize - 1
+				&& indexOfDstTuple >= 0) {
 			return true;
 		}
 		return false;
 	}
-	
+
 	private boolean isEdgeByCGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
-		
+
 		Rule rule = tupleWitness.getRule();
 		if (rule.isTupleGenerating()) {
 			System.out.println("FATAL in isEdgeByCGR because it's a TGR");
 			System.exit(0);
 		}
-		
+
 		int indexOfSrcTuple = tupleWitness.getTuples().indexOf(srcTuple);
 		int indexOfDstTuple = tupleWitness.getTuples().indexOf(dstTuple);
-		
+
 		if (indexOfSrcTuple == indexOfDstTuple) {
 
 			System.out.println("FATAL in isEdgeByCGR because src tuple and dst tuple are the same");
@@ -184,9 +646,9 @@ public class MainController {
 		}
 		/*
 		 * HashMap<String, String> assignment = fillAssignment(tupleWitness,
-		 * currTuple); // find the new rule, put the assignment and try to
-		 * find an assignment for the unchanged variables // if you found
-		 * add edge else don't add edge LOGGER.warning("Assignment = " +
+		 * currTuple); // find the new rule, put the assignment and try to find
+		 * an assignment for the unchanged variables // if you found add edge
+		 * else don't add edge LOGGER.warning("Assignment = " +
 		 * assignment.toString());
 		 * 
 		 * Condition condition = new Condition(tupleWitness.getRule());
@@ -195,7 +657,7 @@ public class MainController {
 		 * suspiciousTuple); }
 		 */
 		return true;
-	}	
+	}
 
 	private HashMap<String, String> fillAssignment(Witness witness, DBTuple unchanged) {
 		HashMap<String, String> assignment = new HashMap<String, String>();
@@ -411,7 +873,7 @@ public class MainController {
 			}
 			rs.close();
 			stmt.close();
-			
+
 			for (String table : tables) {
 				List<String> columns = new ArrayList<String>();
 				stmt = dbConn.createStatement();
@@ -428,7 +890,7 @@ public class MainController {
 				rowsCount = rs.getLong(1);
 				rs.close();
 				stmt.close();
-				
+
 				// Create the table
 				String sql = "CREATE TABLE " + table + " ";
 				String columnsStr = "(";
@@ -445,9 +907,9 @@ public class MainController {
 				stmt = validatedDBConn.createStatement();
 				stmt.executeUpdate(sql);
 				stmt.close();
-				
+
 				for (long rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
-					//For each table row insert zeroes row 
+					// For each table row insert zeroes row
 					columnsStr = "(";
 					for (int i = 0; i < columns.size(); i++) {
 						String column = columns.get(i);
@@ -458,7 +920,7 @@ public class MainController {
 						}
 					}
 					columnsStr += ")";
-					
+
 					sql = "INSERT INTO " + table + " " + columnsStr + " VALUES ";
 					String valuesStr = "(";
 					for (int i = 0; i < columns.size(); i++) {

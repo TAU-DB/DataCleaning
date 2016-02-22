@@ -85,6 +85,11 @@ Select ID, team, country
 From Teams 
 Where country NOT IN (Select country from Countries);
 	</false_query>
+	<true_query>
+Select Teams.ID, Teams.team, Teams.country, Countries.ID, Countries.country, Countries.continent 
+From Teams, Countries
+Where Teams.country = Countries.country;
+	</true_query>
 	<source_query>
 Select ID, team, country 
 From Teams 
@@ -115,6 +120,11 @@ Select ID, first_team, second_team, first_team_goals, second_team_goals, first_t
 From Games 
 Where (first_team NOT IN (Select team from Teams));
 	</false_query>
+	<true_query>
+Select Games.ID, Games.first_team, Games.second_team, Games.first_team_goals, Games.second_team_goals, Games.first_team_pen, Games.second_team_pen, Teams.ID, Teams.team, Teams.country
+From Games, Teams
+Where Games.first_team = Teams.team;
+	</true_query>
 	<source_query>
 Select ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen
 From Games 
@@ -146,6 +156,11 @@ Select ID, first_team, second_team, first_team_goals, second_team_goals, first_t
 From Games 
 Where (second_team NOT IN (Select team from Teams));
 	</false_query>
+	<true_query>
+Select Games.ID, Games.first_team, Games.second_team, Games.first_team_goals, Games.second_team_goals, Games.first_team_pen, Games.second_team_pen, Teams.ID, Teams.team, Teams.country
+From Games, Teams
+Where Games.second_team = Teams.team;
+	</true_query>
 	<source_query>
 Select ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen
 From Games 
@@ -176,6 +191,11 @@ Select ID, first_team, second_team, first_team_goals, second_team_goals, first_t
 From Games 
 Where (first_team NOT IN (Select team from Allowed));
 	</false_query>
+	<true_query>
+Select Games.ID, Games.first_team, Games.second_team, Games.first_team_goals, Games.second_team_goals, Games.first_team_pen, Games.second_team_pen, Allowed.ID, Allowed.team
+From Games, Allowed
+Where Games.first_team = Allowed.team;
+	</true_query>
 	<source_query>
 Select ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen
 From Games 
@@ -206,6 +226,11 @@ Select ID, first_team, second_team, first_team_goals, second_team_goals, first_t
 From Games 
 Where (second_team NOT IN (Select team from Allowed));
 	</false_query>
+	<true_query>
+Select Games.ID, Games.first_team, Games.second_team, Games.first_team_goals, Games.second_team_goals, Games.first_team_pen, Games.second_team_pen, Allowed.ID, Allowed.team
+From Games, Allowed
+Where Games.second_team = Allowed.team;
+	</true_query>
 	<source_query>
 Select ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen
 From Games 
