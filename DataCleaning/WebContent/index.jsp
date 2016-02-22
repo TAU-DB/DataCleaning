@@ -19,6 +19,7 @@
 <link rel="stylesheet" type="text/css" href="css/table.css">
 <link rel="stylesheet" type="text/css" href="css/index.css">
 <link rel="stylesheet" type="text/css" href="css/buttons.css">
+<link rel="stylesheet" type="text/css" href="css/spinner.css">
 <title>Data Cleaning</title>
 </head>
 <body>
@@ -30,22 +31,25 @@
 		DBTuple maxRankedTuple = MainController.getMaxRankTuple(ranks);
 	%>
 </body>
-<center>
-	<h2 id="graph_title">Tuples Graph</h2>
-</center>
-<div id="graph_canvas"
-	style="">
-</div>
+<div id="content">
+	<center>
+		<h2 id="graph_title">Tuples Graph</h2>
+	</center>
+	<div id="graph_canvas" style=""></div>
 
-<h2 id="table_title">Question:</h2>
+	<h2 id="table_title">Question:</h2>
 
-<table id="question_table" class="table-fill">
-</table>
+	<table id="question_table" class="table-fill">
+	</table>
 
-<div id="buttons">
-	<a href="#" onclick="addTupleRequest();return false;" class="btn green">Add&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a> 
-	<a href="#" onclick="deleteTupleRequest();return false;" class="btn red">Delete&nbsp;&nbsp;&nbsp;&nbsp;</a> 
-	<a href="#" onclick="updateTupleRequest();return false;" class="btn orange">Update&nbsp;&nbsp;&nbsp;&nbsp;</a> 
+	<div id="buttons">
+		<a href="#" onclick="addTupleRequest();return false;"
+			class="btn green">Validate&nbsp;&nbsp;</a> <a
+			href="#" onclick="deleteTupleRequest();return false;" class="btn red">Delete&nbsp;&nbsp;&nbsp;&nbsp;</a>
+		<a href="#" onclick="updateTupleRequest();return false;"
+			class="btn orange">Update&nbsp;&nbsp;&nbsp;&nbsp;</a>
+	</div>
+
 </div>
 <script type="text/javascript">
 	var g =

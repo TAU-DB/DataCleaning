@@ -50,6 +50,18 @@ public class WitnessesManager {
 	public List<Rule> getRules() {
 		return m_rules;
 	}
+	
+	public List<Rule> getCauseRules(DBTuple tuple) {
+		
+		List<Rule> causeRules = new ArrayList<Rule>();
+		for (Witness witness : m_witnesses) {
+			if (witness.getTuples().contains(tuple)) {
+				causeRules.add(witness.getRule());
+			}
+		}
+		
+		return causeRules;
+	}
 
 	public List<Witness> getWitnesses() {
 		return m_witnesses;
@@ -84,7 +96,6 @@ public class WitnessesManager {
 		for (Witness witness : witnesses) {
 			for (DBTuple tuple : witness.getTuples()) {
 				
-				//Fix this case 
 				if (!suspicious.contains(tuple) && tuple.isAnonymous()) {
 					suspicious.add(tuple);
 					continue;
@@ -96,6 +107,11 @@ public class WitnessesManager {
 				MainController mainController = MainController.getInstance();
 				List<String> conditionalColumns = getConditionalColumns(tuple);
 				int rowIndex = mainController.getRowIndex(tuple);
+				
+				if (rowIndex == -1) {
+					continue;
+				}
+				
 				boolean isValidated = true;
 
 				try {
@@ -320,21 +336,7 @@ public class WitnessesManager {
 
 					while (rs.next()) {
 						int rsColumnIndex = 1;
-						List<DBTuple> tuples = new ArrayList<DBTuple>();
-						for (int i = 0; i < rule.getLHSFormulaCount(); i++) {
-							if (rule.getLHSFormulaAt(i) instanceof ConditionalFormula) {
-								continue;
-							}
-							RelationalFormula lhsFormula = (RelationalFormula) rule.getLHSFormulaAt(i);
-							DBTuple tuple = new DBTuple(lhsFormula.getTable(), false);
-							for (int j = 0; j < lhsFormula.getVariableCount(); j++) {
-								Variable var = lhsFormula.getVariableAt(j);
-								String value = rs.getString(rsColumnIndex);
-								tuple.setValue(var.getColumn(), value);
-								rsColumnIndex++;
-							}
-							tuples.add(tuple);
-						}
+						List<DBTuple> tuples = MainController.getInstance().extractTuples(rs, rule, false);
 
 						tuples.add(suspiciousTuple);
 						Witness witness = new Witness(rule, tuples);
