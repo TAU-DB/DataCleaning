@@ -14,6 +14,8 @@
 <script type="text/javascript" src="js/jquery.qtip-1.0.0-rc3.min.js"></script>
 <script type="text/javascript" src="js/dracula_graph.js"></script>
 <script type="text/javascript" src="js/dracula_algorithms.js"></script>
+<script type="text/javascript" src="js/go.js"></script>
+<script type="text/javascript" src="js/go-debug.js"></script>
 <script type="text/javascript" src="js/graphViewer.js"></script>
 <script type="text/javascript" src="js/index.js"></script>
 <link rel="stylesheet" type="text/css" href="css/table.css">
@@ -26,6 +28,7 @@
 	<%
 		MainController mainController = MainController.getInstance();
 		Graph graph = mainController.generateGraph();
+		graph.calculateEdgesProbabilities();
 		HashMap<DBTuple, Double> ranks = mainController.calculateRanks(graph);
 		String ranksMapStr = MainController.convertRanksMapToStr(ranks);
 		DBTuple maxRankedTuple = MainController.getMaxRankTuple(ranks);
@@ -43,7 +46,7 @@
 	</table>
 
 	<div id="buttons">
-		<a href="#" onclick="addTupleRequest();return false;"
+		<a href="#" onclick="validateTupleRequest();return false;"
 			class="btn green">Validate&nbsp;&nbsp;</a> <a
 			href="#" onclick="deleteTupleRequest();return false;" class="btn red">Delete&nbsp;&nbsp;&nbsp;&nbsp;</a>
 		<a href="#" onclick="updateTupleRequest();return false;"
@@ -53,7 +56,7 @@
 </div>
 <script type="text/javascript">
 	var g =
-<%=graph.toJSMapStr()%>
+<%=graph.toJSONObject().toJSONString()%>
 	;
 	var ranks =
 <%=ranksMapStr%>

@@ -53,4 +53,9 @@ public class Witness {
 	public int hashCode() {
 		return 0;
 	}
+	
+	public Witness cloneWithNFRule() {
+		
+		return new Witness(m_rule.toNFRule(), m_tuples);
+	}
 }

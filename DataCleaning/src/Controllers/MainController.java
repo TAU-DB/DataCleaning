@@ -1,6 +1,7 @@
 package Controllers;
 
 import java.io.File;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -10,11 +11,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 
+import org.apache.commons.collections15.Transformer;
 import org.json.simple.JSONObject;
 
+import data.Condition;
 import data.ConditionalFormula;
 import data.DBTuple;
 import data.Formula;
@@ -76,7 +81,8 @@ public class MainController {
 	private List<Rule> m_rules;
 	private WitnessesManager m_witManager = null;
 	private String m_validatedDBName = null;
-	private final static Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+	private HashMap<String, Integer> m_tableToID = null;
+	private final Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
 	public static MainController getInstance() {
 		if (m_instance == null) {
@@ -89,12 +95,37 @@ public class MainController {
 	private MainController() {
 
 		LOGGER.setLevel(Level.OFF);
+		FileHandler fh;
+
+		try {
+			File logFile = new File("C:/temp/DataCleaning.log");
+			if (!logFile.exists()) {
+				logFile.createNewFile();
+			}
+
+			// This block configure the logger with handler and formatter
+			fh = new FileHandler("C:/temp/DataCleaning.log");
+			LOGGER.addHandler(fh);
+			SimpleFormatter formatter = new SimpleFormatter();
+			fh.setFormatter(formatter);
+
+		} catch (SecurityException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		m_tableToID = new HashMap<String, Integer>();
 		buildSimpleDB();
 		buildValidatedDB();
 
 		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
 		m_rules = reader.getRules();
 		m_witManager = new WitnessesManager(reader.getRules(), m_dbName);
+	}
+
+	public int getTableID(String tableName) {
+		return m_tableToID.get(tableName).intValue();
 	}
 
 	public String getValidatedDBName() {
@@ -117,32 +148,40 @@ public class MainController {
 			}
 		}
 
-		LOGGER.info(graph.toString());
+		graph.calculateEdgesProbabilities();
 
 		return graph;
 	}
 
 	public HashMap<DBTuple, Double> calculateRanks(Graph graph) {
+		HashMap<String, Double> transitionsWeights = new HashMap<String, Double>();
 		HashMap<DBTuple, Double> ranksMap = new HashMap<DBTuple, Double>();
 
-		DirectedSparseGraph<String, Integer> jungGraph = new DirectedSparseGraph<String, Integer>();
+		DirectedSparseGraph<String, String> jungGraph = new DirectedSparseGraph<String, String>();
 		for (Vertex v : graph.getVertecis()) {
 			jungGraph.addVertex(v.getID());
 		}
 
-		int edgeCount = 0;
 		for (Vertex v : graph.getVertecis()) {
 			String srcVertex = v.getID();
-
-			for (Vertex n : graph.getNeighbors(v)) {
+			List<Vertex> neighbors = graph.getNeighbors(v);
+			for (int i = 0; i < neighbors.size(); i++) {
+				Vertex n = neighbors.get(i);
 				String dstVertex = n.getID();
-				jungGraph.addEdge(edgeCount, srcVertex, dstVertex);
-				edgeCount++;
+				Double transitionWeight = graph.getEdgeProbability(v, n);
+				jungGraph.addEdge(srcVertex + "->" + dstVertex, srcVertex, dstVertex);
+				transitionsWeights.put(srcVertex + "->" + dstVertex, transitionWeight);
+			}
+
+			if (graph.getSelfLoopPobability(v) != null && graph.getSelfLoopPobability(v) > 0) {
+				jungGraph.addEdge(srcVertex + "->" + srcVertex, srcVertex, srcVertex);
+				transitionsWeights.put(srcVertex + "->" + srcVertex, graph.getSelfLoopPobability(v));
 			}
 		}
 
 		long start = System.currentTimeMillis();
-		PageRank<String, Integer> ranker = new PageRank<String, Integer>(jungGraph, 0.2);
+		PageRank<String, String> ranker = new PageRank<String, String>(jungGraph,
+				new EdgesTransformer(transitionsWeights), 0.2);
 		ranker.setTolerance(0.001);
 		ranker.setMaxIterations(200);
 		ranker.evaluate();
@@ -395,7 +434,7 @@ public class MainController {
 			}
 			sql += ") VALUES (";
 			validatedDBSql += ") VALUES (";
-			
+
 			for (int i = 0; i < tableColumns.size(); i++) {
 				String column = tableColumns.get(i);
 				String type = columnToType.get(column);
@@ -406,7 +445,7 @@ public class MainController {
 				}
 
 				validatedDBSql += "0";
-				
+
 				if (i < tableColumns.size() - 1) {
 					sql += ", ";
 					validatedDBSql += ", ";
@@ -416,11 +455,11 @@ public class MainController {
 			validatedDBSql += ");";
 			stmt.executeUpdate(sql);
 			stmt.close();
-			
+
 			stmt = validatedDBConn.createStatement();
 			stmt.executeUpdate(validatedDBSql);
 			stmt.close();
-			
+
 			dbConn.close();
 			validatedDBConn.close();
 		} catch (Exception e) {
@@ -563,6 +602,21 @@ public class MainController {
 		}
 
 		return result;
+	}
+
+	private class EdgesTransformer implements Transformer<String, Double> {
+
+		HashMap<String, Double> m_map;
+
+		public EdgesTransformer(HashMap<String, Double> map) {
+			m_map = map;
+		}
+
+		@Override
+		public Double transform(String edgeStr) {
+			return m_map.get(edgeStr);
+		}
+
 	}
 
 	private boolean validateRHS(DBTuple tuple, DBTuple validatedDBTuple, Rule rule) {
@@ -748,6 +802,10 @@ public class MainController {
 
 	private void updateGraphEdges(Graph graph, DBTuple suspiciousTuple, Witness tupleWitness) {
 
+		if (suspiciousTuple.isAnonymous()) {
+			return;
+		}
+		
 		for (int i = 0; i < tupleWitness.getTuples().size(); i++) {
 
 			DBTuple currTuple = tupleWitness.getTuples().get(i);
@@ -755,15 +813,18 @@ public class MainController {
 				continue;
 			}
 
-			boolean isEdge = false;
 			if (tupleWitness.getRule().isTupleGenerating()) {
-				isEdge = isEdgeByTGR(currTuple, suspiciousTuple, tupleWitness);
-			} else {
-				isEdge = isEdgeByCGR(currTuple, suspiciousTuple, tupleWitness);
+				List<List<String>> causeSubSets = getEdgeCauseColumnSetsByTGR(currTuple, suspiciousTuple, tupleWitness);
+				if (causeSubSets.size() > 0) {
+					graph.addEdge(currTuple, suspiciousTuple, causeSubSets);
+				}
 			}
 
-			if (isEdge) {
-				graph.addEdge(currTuple, suspiciousTuple);
+			if (!tupleWitness.getRule().isTupleGenerating()) {
+				List<List<String>> causeSubSets = getEdgeCauseColumnSetsByCGR(currTuple, suspiciousTuple, tupleWitness);
+				if (causeSubSets.size() > 0) {
+					graph.addEdge(currTuple, suspiciousTuple, causeSubSets);
+				}
 			}
 		}
 	}
@@ -799,51 +860,324 @@ public class MainController {
 		return false;
 	}
 
-	private boolean isEdgeByCGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
+	private List<List<String>> getEdgeCauseColumnSetsByTGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
 
+		String warning = "";
+		warning += System.lineSeparator() + "Edge Column Sets By TGR" + System.lineSeparator();
+
+		// Check if there is an update for the dstTupe that removes this witness
+		// from the srcTuple witnesses
 		Rule rule = tupleWitness.getRule();
-		if (rule.isTupleGenerating()) {
-			System.out.println("FATAL in isEdgeByCGR because it's a TGR");
+		if (!rule.isTupleGenerating()) {
+			System.out.println("FATAL in getEdgeCauseColumnSetsByTGR because it's a CGR");
 			System.exit(0);
 		}
+
+		Rule newNFRule = rule.toNFRule();
+		warning += "The new rule: " + newNFRule.toString() + System.lineSeparator();
+		warning += rule.toString() + System.lineSeparator();
+		warning += "src tuple: " + srcTuple.toString() + System.lineSeparator() + "dst tuple: " + dstTuple.toString()
+				+ System.lineSeparator();
 
 		int indexOfSrcTuple = tupleWitness.getTuples().indexOf(srcTuple);
 		int indexOfDstTuple = tupleWitness.getTuples().indexOf(dstTuple);
 
+		warning += "src tuple index: " + indexOfSrcTuple + System.lineSeparator() + "dst tuple index: "
+				+ indexOfDstTuple + System.lineSeparator();
 		if (indexOfSrcTuple == indexOfDstTuple) {
 
 			System.out.println("FATAL in isEdgeByCGR because src tuple and dst tuple are the same");
 			System.exit(0);
 		}
-		/*
-		 * HashMap<String, String> assignment = fillAssignment(tupleWitness,
-		 * currTuple); // find the new rule, put the assignment and try to find
-		 * an assignment for the unchanged variables // if you found add edge
-		 * else don't add edge LOGGER.warning("Assignment = " +
-		 * assignment.toString());
-		 * 
-		 * Condition condition = new Condition(tupleWitness.getRule());
-		 * condition.assign(assignment); if
-		 * (condition.hasSatisfyingAssignment()) { graph.addEdge(currTuple,
-		 * suspiciousTuple); }
-		 */
-		return true;
+
+		List<List<String>> result = new ArrayList<List<String>>();
+		List<List<List<String>>> supSetsByLen = getSupSetsByLength(new ArrayList<String>(dstTuple.getColumns()));
+		warning += "Subsets by len: " + System.lineSeparator();
+		for (int len = 0; len < supSetsByLen.size(); len++) {
+			warning += "len = " + len + ":" + System.lineSeparator();
+			for (List<String> subSet : supSetsByLen.get(len)) {
+				warning += subSet.toString() + System.lineSeparator();
+			}
+		}
+		warning += "===================================================" + System.lineSeparator();
+
+		for (int len = 0; len < supSetsByLen.size(); len++) {
+			warning += "Iterating over len = " + len + " and the subsets count = " + supSetsByLen.get(len).size()
+					+ System.lineSeparator();
+			for (List<String> subSet : supSetsByLen.get(len)) {
+				warning += "current sub set: " + subSet.toString() + System.lineSeparator();
+				// Get an assignment which assigns the values of the tuples
+				// (except dstTuple)
+				// variables to it's columns values including the values of of
+				// dstTuple columns
+				// that doesn't included in currSupSet
+				HashMap<String, String> assignment = fillAssignment(newNFRule, tupleWitness, dstTuple, subSet);
+
+				// find the new rule, assign the assignment, add conditions for
+				// unchanged columns
+				// and try to find an assignment for the unchanged variables
+				warning += "Assignment = " + assignment.toString() + System.lineSeparator();
+
+				Condition condition = new Condition(newNFRule);
+				warning += "condition w/o assignment = " + condition.toString() + System.lineSeparator();
+				condition.assign(assignment);
+				warning += "condition with assignment = " + condition.toString() + System.lineSeparator();
+
+				HashMap<String, String> columnToVar = getColumnsVars(tupleWitness, dstTuple, subSet);
+				warning += "column to var: " + columnToVar.toString() + System.lineSeparator();
+				HashMap<String, String> columnToType = getColumnsTypes(dstTuple.getTable());
+				for (String column : subSet) {
+					if (dstTuple.getValue(column).equals(".*")) {
+						continue;
+					}
+					String operator = "!=";
+					Variable colVar = new Variable(columnToVar.get(column), column, false, columnToVar.get(column),
+							columnToType.get(column));
+					Variable constVar = new Variable(dstTuple.getValue(column), column, true, dstTuple.getValue(column),
+							columnToType.get(column));
+					List<Variable> temp = new ArrayList<Variable>();
+					temp.add(colVar);
+					temp.add(constVar);
+					ConditionalFormula conFormula = new ConditionalFormula(temp, operator);
+					condition.addExternalFormula(conFormula);
+				}
+
+				warning += "condition after adding inequalities: " + condition.toString() + System.lineSeparator();
+
+				LOGGER.warning(warning);
+				warning = "";
+				if (condition.hasSatisfyingAssignment()) {
+					LOGGER.warning("adding subset: " + subSet.toString());
+					result.add(subSet);
+				}
+				LOGGER.warning("------------------- FINISHED SUBSET");
+			}
+		}
+
+		LOGGER.warning("Result: " + result.toString());
+		LOGGER.warning(
+				"===============================================+++++++++++++++++=====================================");
+		return result;
 	}
 
-	private HashMap<String, String> fillAssignment(Witness witness, DBTuple unchanged) {
-		HashMap<String, String> assignment = new HashMap<String, String>();
+	private List<List<String>> getEdgeCauseColumnSetsByCGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
 
-		int i = 0;
+		String warning = "";
+		warning += System.lineSeparator() + "Edge Column Sets By CGR" + System.lineSeparator();
+
+		// Check if there is an update for the dstTupe that removes this witness
+		// from the srcTuple witnesses
+		Rule rule = tupleWitness.getRule();
+		if (rule.isTupleGenerating()) {
+			System.out.println("FATAL in getEdgeCauseColumnSetsByCGR because it's a TGR");
+			System.exit(0);
+		}
+
+		warning += rule.toString() + System.lineSeparator();
+		warning += "src tuple: " + srcTuple.toString() + System.lineSeparator() + "dst tuple: " + dstTuple.toString()
+				+ System.lineSeparator();
+
+		int indexOfSrcTuple = tupleWitness.getTuples().indexOf(srcTuple);
+		int indexOfDstTuple = tupleWitness.getTuples().indexOf(dstTuple);
+
+		warning += "src tuple index: " + indexOfSrcTuple + System.lineSeparator() + "dst tuple index: "
+				+ indexOfDstTuple + System.lineSeparator();
+		if (indexOfSrcTuple == indexOfDstTuple) {
+
+			System.out.println("FATAL in isEdgeByCGR because src tuple and dst tuple are the same");
+			System.exit(0);
+		}
+
+		List<List<String>> result = new ArrayList<List<String>>();
+		List<List<List<String>>> supSetsByLen = getSupSetsByLength(new ArrayList<String>(dstTuple.getColumns()));
+		warning += "Subsets by len: " + System.lineSeparator();
+		for (int len = 0; len < supSetsByLen.size(); len++) {
+			warning += "len = " + len + ":" + System.lineSeparator();
+			for (List<String> subSet : supSetsByLen.get(len)) {
+				warning += subSet.toString() + System.lineSeparator();
+			}
+		}
+		warning += "===================================================" + System.lineSeparator();
+
+		for (int len = 0; len < supSetsByLen.size(); len++) {
+			warning += "Iterating over len = " + len + " and the subsets count = " + supSetsByLen.get(len).size()
+					+ System.lineSeparator();
+			for (List<String> subSet : supSetsByLen.get(len)) {
+				warning += "current sub set: " + subSet.toString() + System.lineSeparator();
+				// Get an assignment which assigns the values of the tuples
+				// (except dstTuple)
+				// variables to it's columns values including the values of of
+				// dstTuple columns
+				// that doesn't included in currSupSet
+				HashMap<String, String> assignment = fillAssignment(tupleWitness.getRule(), tupleWitness, dstTuple,
+						subSet);
+
+				// find the new rule, assign the assignment, add conditions for
+				// unchanged columns
+				// and try to find an assignment for the unchanged variables
+				warning += "Assignment = " + assignment.toString() + System.lineSeparator();
+
+				Condition condition = new Condition(tupleWitness.getRule());
+				warning += "condition w/o assignment = " + condition.toString() + System.lineSeparator();
+				condition.assign(assignment);
+				warning += "condition with assignment = " + condition.toString() + System.lineSeparator();
+
+				HashMap<String, String> columnToVar = getColumnsVars(tupleWitness, dstTuple, subSet);
+				warning += "column to var: " + columnToVar.toString() + System.lineSeparator();
+				HashMap<String, String> columnToType = getColumnsTypes(dstTuple.getTable());
+				for (String column : subSet) {
+					String operator = "!=";
+					Variable colVar = new Variable(columnToVar.get(column), column, false, columnToVar.get(column),
+							columnToType.get(column));
+					Variable constVar = new Variable(dstTuple.getValue(column), column, true, dstTuple.getValue(column),
+							columnToType.get(column));
+					List<Variable> temp = new ArrayList<Variable>();
+					temp.add(colVar);
+					temp.add(constVar);
+					ConditionalFormula conFormula = new ConditionalFormula(temp, operator);
+					condition.addExternalFormula(conFormula);
+				}
+
+				warning += "condition after adding inequalities: " + condition.toString() + System.lineSeparator();
+
+				// LOGGER.warning(warning);
+				warning = "";
+				if (condition.hasSatisfyingAssignment()) {
+					LOGGER.warning("adding subset: " + subSet.toString());
+					result.add(subSet);
+				}
+				LOGGER.warning("------------------- FINISHED SUBSET");
+			}
+		}
+
+		LOGGER.warning("Result: " + result.toString());
+		LOGGER.warning(
+				"===============================================+++++++++++++++++=====================================");
+		return result;
+	}
+
+	private HashMap<String, String> getColumnsVars(Witness witness, DBTuple columnsOwner, List<String> columns) {
+
+		HashMap<String, String> columnsToVars = new HashMap<String, String>();
+		int relFormulaIndex = 0;
 		for (int j = 0; j < witness.getRule().getLHSFormulaCount(); j++) {
 			if (witness.getRule().getLHSFormulaAt(j) instanceof ConditionalFormula) {
 				continue;
 			}
 			RelationalFormula formula = (RelationalFormula) witness.getRule().getLHSFormulaAt(j);
-			DBTuple tuple = witness.getTuples().get(i);
-			if (tuple.equals(unchanged)) {
+			DBTuple tuple = witness.getTuples().get(relFormulaIndex);
+			if (tuple.equals(columnsOwner)) {
 				for (int varIndex = 0; varIndex < formula.getVariableCount(); varIndex++) {
-					String varName = formula.getVariableAt(varIndex).getName();
-					assignment.put(varName, varName);
+					Variable var = formula.getVariableAt(varIndex);
+					if (var.isConstant()) {
+						System.out.println(
+								"FATAL in getColumnsVars because relational formula tuple must not be constant");
+						System.exit(0);
+					}
+
+					if (columns.contains(var.getColumn())) {
+						columnsToVars.put(var.getColumn(), var.getName());
+					}
+				}
+			}
+			relFormulaIndex++;
+		}
+
+		return columnsToVars;
+	}
+
+	private List<List<List<String>>> getSupSetsByLength(List<String> columns) {
+		List<List<List<String>>> result = new ArrayList<List<List<String>>>();
+		List<List<String>> supGroups = getSupSets(columns);
+
+		for (int i = 0; i < columns.size() + 1; i++) {
+			result.add(new ArrayList<List<String>>());
+		}
+
+		for (List<String> supGroup : supGroups) {
+			result.get(supGroup.size()).add(supGroup);
+		}
+
+		return result;
+	}
+
+	private List<List<String>> getSupSets(List<String> columns) {
+		List<List<String>> result = new ArrayList<List<String>>();
+		if (columns.size() == 0) {
+			result.add(new ArrayList<String>());
+			return result;
+		}
+
+		if (columns.size() == 1) {
+			result.add(new ArrayList<String>());
+			List<String> oneItemSet = new ArrayList<String>();
+			oneItemSet.add(columns.get(0));
+			result.add(oneItemSet);
+			return result;
+		}
+
+		String firstItem = columns.get(0);
+		List<String> newColumns = new ArrayList<String>();
+		for (int i = 1; i < columns.size(); i++) {
+			newColumns.add(columns.get(i));
+		}
+
+		List<List<String>> newColumnsSupSets = getSupSets(newColumns);
+
+		for (List<String> newColumnsSupSet : newColumnsSupSets) {
+			List<String> cloneLst = new ArrayList<String>();
+			for (String val : newColumnsSupSet) {
+				cloneLst.add(val);
+			}
+			result.add(cloneLst);
+		}
+
+		for (List<String> newColumnsSupSet : newColumnsSupSets) {
+			List<String> cloneLst = new ArrayList<String>();
+			cloneLst.add(firstItem);
+			for (String val : newColumnsSupSet) {
+				cloneLst.add(val);
+			}
+			result.add(cloneLst);
+		}
+
+		return result;
+	}
+
+	private HashMap<String, String> fillAssignment(Rule rule, Witness witness, DBTuple unassigned,
+			List<String> unassignedColumns) {
+		HashMap<String, String> assignment = new HashMap<String, String>();
+
+		List<Formula> formulas = new ArrayList<Formula>();
+		for (int i = 0; i < rule.getLHSFormulaCount(); i++) {
+			formulas.add(rule.getLHSFormulaAt(i));
+		}
+		for (int i = 0; i < rule.getRHSFormulaCount(); i++) {
+			formulas.add(rule.getRHSFormulaAt(i));
+		}
+
+		int i = 0;
+		for (int j = 0; j < formulas.size(); j++) {
+			if (formulas.get(j) instanceof ConditionalFormula) {
+				continue;
+			}
+			RelationalFormula formula = (RelationalFormula) formulas.get(j);
+			DBTuple tuple = witness.getTuples().get(i);
+			if (tuple.equals(unassigned)) {
+				for (int varIndex = 0; varIndex < formula.getVariableCount(); varIndex++) {
+					Variable var = formula.getVariableAt(varIndex);
+					if (var.isConstant()) {
+						System.out.println(
+								"FATAL in fillAssignment because relational formula tuple must not be constant");
+						System.exit(0);
+					}
+					String varName = var.getName();
+					if (unassignedColumns.contains(var.getColumn())) {
+						assignment.put(varName, varName);
+					} else {
+						String value = tuple.getValue(var.getColumn());
+						assignment.put(varName, value);
+					}
 				}
 			} else {
 				for (int varIndex = 0; varIndex < formula.getVariableCount(); varIndex++) {
@@ -1037,10 +1371,14 @@ public class MainController {
 			LOGGER.info("Opened validated database successfully");
 
 			List<String> tables = new ArrayList<String>();
+			int tableID = 0;
 			stmt = dbConn.createStatement();
 			ResultSet rs = stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table';");
 			while (rs.next()) {
-				tables.add(rs.getString(1));
+				String tableName = rs.getString(1);
+				tables.add(tableName);
+				m_tableToID.put(tableName, new Integer(tableID));
+				tableID++;
 			}
 			rs.close();
 			stmt.close();

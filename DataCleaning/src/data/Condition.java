@@ -3,26 +3,30 @@ package data;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.logging.Logger;
 
-import net.sf.javailp.Linear;
-import net.sf.javailp.OptType;
-import net.sf.javailp.Problem;
-import net.sf.javailp.Result;
-import net.sf.javailp.Solver;
-import net.sf.javailp.SolverFactory;
-import net.sf.javailp.SolverFactoryLpSolve;
+import jp.ac.kobe_u.cs.cream.DefaultSolver;
+import jp.ac.kobe_u.cs.cream.IntVariable;
+import jp.ac.kobe_u.cs.cream.Network;
+import jp.ac.kobe_u.cs.cream.Solution;
+import jp.ac.kobe_u.cs.cream.Solver;
 
 public class Condition {
 
 	private Rule m_rule;
 	private List<ConditionalFormula> m_lhsMappedFormulas;
 	private List<ConditionalFormula> m_rhsMappedFormulas;
+	private List<ConditionalFormula> m_externalStringFormulas;
+	private List<ConditionalFormula> m_externalIntFormulas;
+	private final Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
 	public Condition(Rule rule) {
 
 		m_rule = rule;
 		m_lhsMappedFormulas = new ArrayList<ConditionalFormula>();
 		m_rhsMappedFormulas = new ArrayList<ConditionalFormula>();
+		m_externalStringFormulas = new ArrayList<ConditionalFormula>();
+		m_externalIntFormulas = new ArrayList<ConditionalFormula>();
 
 		// 1. Get the conditional formulas from the rule, assume we have (x=5
 		// and y=6 -> z=7 and k=8)
@@ -38,22 +42,7 @@ public class Condition {
 			}
 
 			ConditionalFormula currFormula = (ConditionalFormula) m_rule.getLHSFormulaAt(i);
-			String operator = currFormula.getOperator();
-			String negOperator = getOppositeOperator(operator);
-
-			List<Variable> conVariables = new ArrayList<Variable>();
-			for (int varIndex = 0; varIndex < currFormula.getVariableCount(); varIndex++) {
-				Variable var = currFormula.getVariableAt(varIndex);
-				String name = var.getName();
-				String column = var.getColumn();
-				boolean isConstant = var.isConstant();
-				String value = var.getValue();
-				String type = var.getType();
-				conVariables.add(new Variable(name, column, isConstant, value, type));
-			}
-
-			ConditionalFormula conFormula = new ConditionalFormula(conVariables, negOperator);
-			m_lhsMappedFormulas.add(conFormula);
+			addLHSFormula(currFormula);
 		}
 
 		for (int i = 0; i < m_rule.getRHSFormulaCount(); i++) {
@@ -62,22 +51,76 @@ public class Condition {
 			}
 
 			ConditionalFormula currFormula = (ConditionalFormula) m_rule.getRHSFormulaAt(i);
-			String operator = currFormula.getOperator();
-
-			List<Variable> conVariables = new ArrayList<Variable>();
-			for (int varIndex = 0; varIndex < currFormula.getVariableCount(); varIndex++) {
-				Variable var = currFormula.getVariableAt(varIndex);
-				String name = var.getName();
-				String column = var.getColumn();
-				boolean isConstant = var.isConstant();
-				String value = var.getValue();
-				String type = var.getType();
-				conVariables.add(new Variable(name, column, isConstant, value, type));
-			}
-
-			ConditionalFormula conFormula = new ConditionalFormula(conVariables, operator);
-			m_rhsMappedFormulas.add(conFormula);
+			addRHSFormula(currFormula);
 		}
+	}
+
+	@Override
+	public String toString() {
+		String lhs = "";
+		for (int i = 0; i < m_lhsMappedFormulas.size(); i++) {
+			if (i != m_lhsMappedFormulas.size() - 1) {
+				lhs += m_lhsMappedFormulas.get(i).toString() + " || ";
+			} else {
+				lhs += m_lhsMappedFormulas.get(i).toString();
+			}
+		}
+
+		String rhs = "";
+		for (int i = 0; i < m_rhsMappedFormulas.size(); i++) {
+			if (i != m_rhsMappedFormulas.size() - 1) {
+				rhs += m_rhsMappedFormulas.get(i).toString() + " && ";
+			} else {
+				rhs += m_rhsMappedFormulas.get(i).toString();
+			}
+		}
+		return lhs + " || " + rhs;
+	}
+	
+	public void addExternalFormula(ConditionalFormula formula) {
+		Variable lhsVar = formula.getVariableAt(0);
+		if (lhsVar.getType().toLowerCase().equals("string")) {
+			m_externalStringFormulas.add(formula);
+			return;
+		}
+		m_externalIntFormulas.add(formula);
+	}
+	
+	private void addLHSFormula(ConditionalFormula formula) {
+		String operator = formula.getOperator();
+		String negOperator = getOppositeOperator(operator);
+
+		List<Variable> conVariables = new ArrayList<Variable>();
+		for (int varIndex = 0; varIndex < formula.getVariableCount(); varIndex++) {
+			Variable var = formula.getVariableAt(varIndex);
+			String name = var.getName();
+			String column = var.getColumn();
+			boolean isConstant = var.isConstant();
+			String value = var.getValue();
+			String type = var.getType();
+			conVariables.add(new Variable(name, column, isConstant, value, type));
+		}
+
+		ConditionalFormula conFormula = new ConditionalFormula(conVariables, negOperator);
+		m_lhsMappedFormulas.add(conFormula);
+	}
+
+	private void addRHSFormula(ConditionalFormula formula) {
+		String operator = formula.getOperator();
+
+		List<Variable> conVariables = new ArrayList<Variable>();
+		for (int varIndex = 0; varIndex < formula.getVariableCount(); varIndex++) {
+			Variable var = formula.getVariableAt(varIndex);
+			String name = var.getName();
+			String column = var.getColumn();
+			boolean isConstant = var.isConstant();
+			String value = var.getValue();
+			String type = var.getType();
+			conVariables.add(new Variable(name, column, isConstant, value, type));
+		}
+
+		ConditionalFormula conFormula = new ConditionalFormula(conVariables, operator);
+		m_rhsMappedFormulas.add(conFormula);
 	}
 
 	public Rule getRule() {
@@ -111,21 +154,49 @@ public class Condition {
 
 	public boolean hasSatisfyingAssignment() {
 
+		boolean hasSatAssignment = false;
+		List<ConditionalFormula> tempConstraints = new ArrayList<ConditionalFormula>();
+		String warning = System.lineSeparator() + "Checking for sat assignment" + System.lineSeparator();
 		// Check if any formula of the lhsMappedFormulas has a satisfying
 		// assignment, if yes return true.
-		// A lhsMapped formula doesn't have a satisfying assignment <=> its
-		// const_1 op const_2 and it's contradiction
-		// or it's x != x || x > x || x < x
+		// To check that for each lhs formula append the external formula of the same type
+		// and check for satisfying assignment
+		warning += "Checking if any of the ORs are not contradiction : " + System.lineSeparator();
+		LOGGER.warning(warning);
 		for (ConditionalFormula formula : m_lhsMappedFormulas) {
-			if (!isContradiction(formula)) {
+			tempConstraints = cloneExternalFormulas();
+			tempConstraints.add(formula);
+			hasSatAssignment = constraintsHasSatAssignment(tempConstraints);
+			if (hasSatAssignment) {
 				return true;
 			}
 		}
 
-		// Get rhs not integer/integer formulas
+		warning = "";
+		warning += "Checking if the ANDs has a satisfying assignment: " + System.lineSeparator();
+		LOGGER.warning(warning);
+		// Get rhs string/integer formulas
+		tempConstraints = cloneExternalFormulas();
+		tempConstraints.addAll(m_rhsMappedFormulas);
+		hasSatAssignment = constraintsHasSatAssignment(tempConstraints);
+		LOGGER.warning(System.lineSeparator() + "returning:" + hasSatAssignment + System.lineSeparator());
+		return hasSatAssignment;
+	}
+	
+	private List<ConditionalFormula> cloneExternalFormulas() {
+		List<ConditionalFormula> externalFormulas = new ArrayList<ConditionalFormula>();
+		externalFormulas.addAll(m_externalIntFormulas);
+		externalFormulas.addAll(m_externalStringFormulas);
+		return externalFormulas;
+	}
+	
+	private boolean constraintsHasSatAssignment(List<ConditionalFormula> constraints) {
+		
+		String warning = System.lineSeparator() + "Checking constraints:" + System.lineSeparator();
+		warning += constraints.toString() + System.lineSeparator();
 		List<ConditionalFormula> stringFormulas = new ArrayList<ConditionalFormula>();
 		List<ConditionalFormula> integerFormulas = new ArrayList<ConditionalFormula>();
-		for (ConditionalFormula formula : m_rhsMappedFormulas) {
+		for (ConditionalFormula formula : constraints) {
 			if (formula.getVariableAt(0).getType().toLowerCase().equals("integer")) {
 				integerFormulas.add(formula);
 			} else {
@@ -136,16 +207,26 @@ public class Condition {
 		// Check if integer variables & string variables has a solution
 		boolean hasSolutionInt = hasSolutionInteger(integerFormulas);
 		boolean hasSolutionStr = hasSolutionString(stringFormulas);
+		
+		warning += "int has solution: " + hasSolutionInt + " string has solution: " + hasSolutionStr + System.lineSeparator();
 
 		if (hasSolutionInt && hasSolutionStr) {
+			warning += "returning true" + System.lineSeparator();
+			LOGGER.warning(warning);
 			return true;
 		}
 
+		warning += "returning false" + System.lineSeparator();
+		LOGGER.warning(warning);
 		return false;
 	}
 
 	private boolean hasSolutionString(List<ConditionalFormula> stringFormulas) {
 
+		if (stringFormulas.size() == 0) {
+			return true;
+		}
+		
 		List<String> variables = new ArrayList<String>();
 		for (ConditionalFormula formula : stringFormulas) {
 			for (int i = 0; i < formula.getVariableCount(); i++) {
@@ -240,67 +321,139 @@ public class Condition {
 
 	private boolean hasSolutionInteger(List<ConditionalFormula> integerFormulas) {
 
+		if (integerFormulas.size() == 0) {
+			return true;
+		}
+		
 		List<String> varNames = new ArrayList<String>();
 		for (ConditionalFormula formula : integerFormulas) {
 			for (int i = 0; i < formula.getVariableCount(); i++) {
-				if (!varNames.contains(formula.getVariableAt(i).getName())) {
+				Variable var = formula.getVariableAt(i);
+				if (!var.isConstant() && !varNames.contains(formula.getVariableAt(i).getName())) {
 					varNames.add(formula.getVariableAt(i).getName());
 				}
 			}
 		}
 
-		Problem problem = new Problem();
+		Network net = new Network();
 
-		Linear linear = new Linear();
+		HashMap<String, IntVariable> varToIntVar = new HashMap<String, IntVariable>();
 		for (String varName : varNames) {
-			linear.add(1, varName);
+			varToIntVar.put(varName, new IntVariable(net));
 		}
-
-		problem.setObjective(linear, OptType.MAX);
 
 		for (ConditionalFormula formula : integerFormulas) {
 
 			Variable lhsVar = formula.getVariableAt(0);
 			Variable rhsVar = formula.getVariableAt(1);
 			if (lhsVar.isConstant() && rhsVar.isConstant()) {
-				linear = new Linear();
-				problem.add(linear, formula.getOperator(),
-						Integer.parseInt(rhsVar.getValue()) - Integer.parseInt(lhsVar.getValue()));
+				if (isContradiction(Integer.parseInt(lhsVar.getValue()), Integer.parseInt(rhsVar.getValue()),
+						formula.getOperator())) {
+					return false;
+				}
 			}
 
 			if (!lhsVar.isConstant() && rhsVar.isConstant()) {
-				linear = new Linear();
-				linear.add(1, lhsVar.getName());
-				problem.add(linear, formula.getOperator(), Integer.parseInt(rhsVar.getValue()));
+				addConstraint(varToIntVar.get(lhsVar.getName()), Integer.parseInt(rhsVar.getValue()), formula.getOperator());
 			}
 
 			if (lhsVar.isConstant() && !rhsVar.isConstant()) {
-				linear = new Linear();
-				linear.add(1, rhsVar.getName());
-				problem.add(linear, getOppositeOperator(formula.getOperator()), Integer.parseInt(rhsVar.getValue()));
+				addConstraint(varToIntVar.get(rhsVar.getName()), Integer.parseInt(lhsVar.getValue()), flipOperator(formula.getOperator()));
 			}
 
 			if (!lhsVar.isConstant() && !rhsVar.isConstant()) {
-				linear = new Linear();
-				linear.add(1, lhsVar.getName());
-				linear.add(-1, rhsVar.getName());
-				problem.add(linear, formula.getOperator(), 0);
+				addConstraint(varToIntVar.get(lhsVar.getName()), varToIntVar.get(rhsVar.getName()), formula.getOperator());
 			}
 		}
 
-		SolverFactory factory = new SolverFactoryLpSolve(); // use lp_solve
-		factory.setParameter(Solver.VERBOSE, 0);
-		factory.setParameter(Solver.TIMEOUT, 100);
+		// Solve the problem
+		Solver solver = new DefaultSolver(net);
+		Solution solution = solver.findFirst();
+		if (solution == null) {
+			return false;
+		}
 
-		Solver solver = factory.get(); // you should use this solver only once
-										// for one problem
-		Result result = solver.solve(problem);
+		return true;
 
-		if (result != null) {
+	}
+
+	private void addConstraint(IntVariable intVar, int constant, String operator) {
+		switch (operator) {
+		case "==":
+			intVar.equals(constant);
+			break;
+		case "!=":
+			intVar.notEquals(constant);
+			break;
+		case "<=":
+			intVar.le(constant);
+			break;
+		case "<":
+			intVar.lt(constant);
+			break;
+		case ">=":
+			intVar.ge(constant);
+			break;
+		case ">":
+			intVar.gt(constant);
+			break;
+		default:
+			return;
+		}
+	}
+
+	private void addConstraint(IntVariable intVar, IntVariable constant, String operator) {
+		switch (operator) {
+		case "==":
+			intVar.equals(constant);
+			break;
+		case "!=":
+			intVar.notEquals(constant);
+			break;
+		case "<=":
+			intVar.le(constant);
+			break;
+		case "<":
+			intVar.lt(constant);
+			break;
+		case ">=":
+			intVar.ge(constant);
+			break;
+		case ">":
+			intVar.gt(constant);
+			break;
+		default:
+			return;
+		}
+	}
+
+	private boolean isContradiction(int lhs, int rhs, String operator) {
+
+		boolean result;
+
+		switch (operator) {
+		case "==":
+			result = (lhs != rhs);
+			break;
+		case "!=":
+			result = (lhs == rhs);
+			break;
+		case "<=":
+			result = (lhs > rhs);
+			break;
+		case "<":
+			result = (lhs >= rhs);
+			break;
+		case ">=":
+			result = (lhs < rhs);
+			break;
+		case ">":
+			result = (lhs <= rhs);
+			break;
+		default:
 			return true;
 		}
-		return false;
-
+		return result;
 	}
 
 	private boolean isContradiction(ConditionalFormula formula) {
@@ -356,6 +509,34 @@ public class Condition {
 		return false;
 	}
 
+	private String flipOperator(String operator) {
+
+		if (operator.equals("==")) {
+			return "==";
+		}
+
+		if (operator.equals("!=")) {
+			return "!=";
+		}
+
+		if (operator.equals(">")) {
+			return "<";
+		}
+
+		if (operator.equals("<")) {
+			return ">";
+		}
+
+		if (operator.equals(">=")) {
+			return "<=";
+		}
+
+		if (operator.equals("<=")) {
+			return ">=";
+		}
+		return null;
+	}
+	
 	private String getOppositeOperator(String operator) {
 
 		if (operator.equals("==")) {

@@ -441,12 +441,6 @@ public class WitnessesManager {
 	private void distinct() {
 		List<Witness> witnesses = new ArrayList<Witness>();
 
-		String warning = System.lineSeparator();
-
-		for (Witness witness : m_witnesses) {
-			warning += witness.toString() + System.lineSeparator();
-		}
-		warning += "===============================================" + System.lineSeparator();
 		for (Witness witness : m_witnesses) {
 			if (!witnesses.contains(witness)) {
 				witnesses.add(witness);
@@ -454,9 +448,5 @@ public class WitnessesManager {
 		}
 		m_witnesses = witnesses;
 
-		for (Witness witness : m_witnesses) {
-			warning += witness.toString() + System.lineSeparator();
-		}
-		LOGGER.log(Level.WARNING, warning);
 	}
 }

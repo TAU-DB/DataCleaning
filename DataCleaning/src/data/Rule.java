@@ -1,8 +1,10 @@
 package data;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class Rule {
 
@@ -176,7 +178,74 @@ public class Rule {
 
 		return result;
 	}
+	
+	public Rule toNFRule() {
+		if (!isTupleGenerating()) {
+			return new Rule(m_type, m_falseQuery, m_trueQuery, m_sourceQuery, m_lhs, m_rhs);
+		}
+		
+		Set<String> rhsDefinedVars = getRHSDefinedVariables();
+		RelationalFormula formula = (RelationalFormula) m_rhs.get(0);
+		HashMap<String, Variable> varMap = new HashMap<String, Variable>();
+		int tempIndex = 0;
+		for (int i = 0; i < formula.getVariableCount(); i++) {
+			Variable var = formula.getVariableAt(i);
+			if (var.isConstant()) {
+				System.out.println("in toNFRule variable is constant!");
+				System.exit(0);
+			}
+			
+			// BUG if variable appears in two columns in RHS formula
+			if (!rhsDefinedVars.contains(var.getName())) {
+				varMap.put(var.getName(), new Variable("temp_" + tempIndex, var.getColumn(), false, "temp_" + tempIndex, var.getType()));
+				tempIndex++;
+			}
+		}
+		List<Variable> newVariables = new ArrayList<Variable>();
+		for (int i = 0; i < formula.getVariableCount(); i++) {
+			Variable var = formula.getVariableAt(i);
+			if (varMap.containsKey(var.getName())) {
+				newVariables.add(varMap.get(var.getName()));
+			} else {
+				newVariables.add(var);
+			}
+		}
+		
+		List<Formula> newRHS = new ArrayList<Formula>();
+		RelationalFormula newRHSFormula = new RelationalFormula(formula.getTable(), newVariables);
+		newRHS.add(newRHSFormula);
+		for (String varName : varMap.keySet()) {
+			Variable tempVar = varMap.get(varName);
+			List<Variable> conFormulaVars = new ArrayList<Variable>();
+			conFormulaVars.add(tempVar);
+			conFormulaVars.add(new Variable(varName, tempVar.getColumn(), false, varName, tempVar.getType()));
+			ConditionalFormula conFormula = new ConditionalFormula(conFormulaVars, "==");
+			newRHS.add(conFormula);
+		}
+		
+		return new Rule(m_type, m_falseQuery, m_trueQuery, m_sourceQuery, m_lhs, newRHS);
+	}
 
+	private int getVariableCount() {
+		
+		List<Formula> formulas = new ArrayList<Formula>();
+		formulas.addAll(m_lhs);
+		formulas.addAll(m_rhs);
+		List<String> variables = new ArrayList<String>();
+		for (Formula formula : m_lhs) {
+			for (int i = 0; i < formula.getVariableCount(); i++) {
+				Variable var = formula.getVariableAt(i);
+				if (var.isConstant()) {
+					continue;
+				}
+				if (!variables.contains(var.getName())) {
+					variables.add(var.getName());
+				}
+			}
+		}
+		return variables.size();
+	}
+	
 	private boolean isVariableInBothSides(String varName) {
 
 		boolean isVarInLHS = false;
