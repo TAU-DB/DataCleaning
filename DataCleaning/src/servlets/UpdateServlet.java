@@ -58,6 +58,7 @@ public class UpdateServlet extends HttpServlet {
 		MainController mainController = MainController.getInstance();
 		mainController.updateValidatedDB();
 		Graph graph = mainController.generateGraph();
+		graph.calculateEdgesProbabilities();
 		
 		List<DBTuple> anonymousTuples = mainController.getAnonymousTuples();
 		for (DBTuple anonymousTuple : anonymousTuples) {
