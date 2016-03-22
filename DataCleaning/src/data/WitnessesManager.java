@@ -47,6 +47,10 @@ public class WitnessesManager {
 		LOGGER.info(info);
 	}
 
+	public void addRule(Rule rule) {
+		m_rules.add(rule);
+	}
+	
 	public List<Rule> getRules() {
 		return m_rules;
 	}

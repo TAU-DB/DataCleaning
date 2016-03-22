@@ -1,15 +1,21 @@
 package data;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
 
+import javax.swing.plaf.basic.BasicBorders.MarginBorder;
+
 import org.json.simple.JSONObject;
+
+import Controllers.MainController;
 
 public class DBTuple {
 	
 	private String m_table;
 	private HashMap<String, String> m_values;
 	private boolean m_isAnonymous = false;
+	private final boolean DISPLAY_COLUMNS_NAMES = false;
 	
 	public DBTuple(String table, boolean isAnonymous) {
 		m_table = table;
@@ -39,7 +45,22 @@ public class DBTuple {
 	
 	@Override 
 	public String toString() {
-		return m_table + "(" + m_values.toString() + ")";
+		
+		if (DISPLAY_COLUMNS_NAMES) {
+			return toJSONObject().toJSONString();
+		}
+		
+		MainController mainController = MainController.getInstance();
+		List<String> columns = mainController.getTableColumns(m_table);
+		String result = m_table + "(";
+		for (int i = 0; i < columns.size(); i++) {
+			result += m_values.get(columns.get(i));
+			if (i < columns.size() - 1) {
+				result += ",";
+			}
+		}
+		result += ")";
+		return result;
 	}
 	
 	@Override
@@ -74,13 +95,15 @@ public class DBTuple {
 	}
 	
 	public String getJSMapStr() {
-
+		
+		MainController mainController = MainController.getInstance();
+		List<String> columns = mainController.getTableColumns(m_table);
 		String result = "{";
 		result += "table_name : " + "\"" + m_table + "\"" + ", ";
 		result += "is_anonymous : " + (isAnonymous() ? 1 : 0) + ", ";
 		result += "columns : {";
 		int columnIndex = 0;
-		for (String column : m_values.keySet()) {
+		for (String column : columns) {
 			result += "\"" + column + "\"";
 			result += " : " + "\"" + m_values.get(column) + "\"";
 
@@ -95,14 +118,17 @@ public class DBTuple {
 	
 	public JSONObject toJSONObject() {
 
+		MainController mainController = MainController.getInstance();
+		List<String> columns = mainController.getTableColumns(m_table);
 		JSONObject result = new JSONObject();
 		result.put("table_name", m_table);
 		result.put("is_anonymous", isAnonymous() ? 1 : 0);
-		JSONObject columns = new JSONObject();
-		for (String column : m_values.keySet()) {
-			columns.put(column, m_values.get(column));
+		JSONObject jsonValues = new JSONObject();
+		for (String column : columns) {
+			jsonValues.put(column, m_values.get(column));
 		}
-		result.put("columns", columns);
+		result.put("columns", jsonValues);
+		result.put("column_list", columns);
 		return result;
 	}
 	
