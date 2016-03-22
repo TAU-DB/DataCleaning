@@ -17,11 +17,13 @@ import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 
 import org.apache.commons.collections15.Transformer;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import data.Condition;
 import data.ConditionalFormula;
 import data.DBTuple;
+import data.DatalogQuery;
 import data.Formula;
 import data.Graph;
 import data.RelationalFormula;
@@ -82,6 +84,9 @@ public class MainController {
 	private WitnessesManager m_witManager = null;
 	private String m_validatedDBName = null;
 	private HashMap<String, Integer> m_tableToID = null;
+	private HashMap<String, List<String>> m_tableToColumns = null;
+	private List<DatalogQuery> m_lastQueries;
+	private String m_lastQueriesStr;
 	private final Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
 	public static MainController getInstance() {
@@ -116,12 +121,115 @@ public class MainController {
 		}
 
 		m_tableToID = new HashMap<String, Integer>();
-		buildSimpleDB();
+		m_tableToColumns = new HashMap<String, List<String>>();
+		m_dbName = "C:" + File.separator + "temp" + File.separator + "wcdata.db";
+//		m_dbName = "C:" + File.separator + "temp" + File.separator + "example.db";
+
+//		buildSimpleDB();
 		buildValidatedDB();
 
-		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
+//		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
+		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules_wcdata2.xml");
 		m_rules = reader.getRules();
 		m_witManager = new WitnessesManager(reader.getRules(), m_dbName);
+	}
+
+	// ?n :- countries(?id1, ?n, ?con) and games(?id2, ?tw1, ?tl1, ?d1, ?t1,
+	// ?s1, ?tws1, ?tls1, ?twp1, ?tlp1) and games(?id3, ?tw2, ?tl2, ?d2, ?t2,
+	// ?s2, ?tws2, ?tls2, ?twp2, ?tlp2) and ?d1 != ?d2 and ?s1 == ?s2 and ?s1 ==
+	// 'Final' and ?con == 'Europe' and ?tl1 == ?n and ?tl2 == ?n
+	// public void parseQuery() {
+	// String query1 = "?x1, ?x2 :-Teams(?z1, ?x1, ?x2) and Allowed(?z2, ?z3)
+	// and ?x1 == ?z3";
+	// String query2 = "?x2 :- Games(?z1, ?x1, ?x2, ?z2, ?z3, ?z4, ?z5) and ?x1
+	// == 'Real'";
+	// String query3 = "?x1,?x2 :- Games(?z1, ?x1, ?x2, ?z2, ?z3, ?z4, ?z5) and
+	// ?z4 == ?z5 and ?z2>?z3";
+	// String query4 = "?x1,?x2 :- Games(?z1, ?x1, ?x2, ?z2, ?z3, ?z4, ?z5)";
+	//
+	// DatalogQuery q1 = new DatalogQuery(query1);
+	// DatalogQuery q2 = new DatalogQuery(query2);
+	// DatalogQuery q3 = new DatalogQuery(query3);
+	// DatalogQuery q4 = new DatalogQuery(query4);
+	//
+	// System.out.println("============== queries ==============");
+	// System.out.println(q1.toDetailedString());
+	// System.out.println("=====================================");
+	// System.out.println(q2.toDetailedString());
+	// System.out.println("=====================================");
+	// System.out.println(q3.toDetailedString());
+	// System.out.println("=====================================");
+	// System.out.println(q4.toDetailedString());
+	// System.out.println("=====================================");
+	//
+	// }
+
+	public void addRule(Rule rule) {
+		m_witManager.addRule(rule);
+	}
+
+	public List<DatalogQuery> getLastQueries() {
+		return m_lastQueries;
+	}
+
+	public void setLastQueries(List<DatalogQuery> queries, String queriesStr) {
+		m_lastQueries = queries;
+		m_lastQueriesStr = queriesStr;
+	}
+	
+	public String getLastQueriesStr() {
+		return m_lastQueriesStr;
+	}
+
+	public JSONArray runQuery(DatalogQuery query) {
+
+		JSONArray result = new JSONArray();
+		String sqlQuery = query.getSQLQuery();
+		// System.out.println(sqlQuery);
+		try {
+
+			Connection dbConn = null;
+			Statement stmt = null;
+			Class.forName("org.sqlite.JDBC");
+			dbConn = DriverManager.getConnection("jdbc:sqlite:" + m_dbName);
+
+			stmt = dbConn.createStatement();
+			ResultSet rs = stmt.executeQuery(sqlQuery);
+			JSONArray headArr = new JSONArray();
+			List<String> resultColumns = new ArrayList<String>();
+			List<String> resultColumnsTypes = new ArrayList<String>();
+			for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
+				resultColumns.add(rs.getMetaData().getColumnLabel(i));
+				String colType = query.getHeadVarType(i - 1);
+				resultColumnsTypes.add(colType);
+				headArr.add(rs.getMetaData().getColumnLabel(i));
+			}
+			result.add(headArr);
+
+			while (rs.next()) {
+				JSONArray arr = new JSONArray();
+				for (int i = 0; i < resultColumns.size(); i++) {
+					if (resultColumnsTypes.get(i).equals("string")) {
+						arr.add(rs.getString(resultColumns.get(i)));
+					} else {
+						arr.add(rs.getInt(resultColumns.get(i)));
+					}
+				}
+				result.add(arr);
+			}
+			rs.close();
+			stmt.close();
+			dbConn.close();
+		} catch (Exception e) {
+			System.err.println(e.getClass().getName() + ": " + e.getMessage());
+			System.exit(0);
+		}
+
+		return result;
+	}
+
+	public List<String> getTableColumns(String tableName) {
+		return m_tableToColumns.get(tableName);
 	}
 
 	public int getTableID(String tableName) {
@@ -409,7 +517,7 @@ public class MainController {
 		}
 
 		HashMap<String, String> columnToType = getColumnsTypes(tuple.getTable());
-		List<String> tableColumns = getColumns(tuple.getTable());
+		List<String> tableColumns = m_tableToColumns.get(tuple.getTable());
 
 		try {
 			Connection dbConn = null;
@@ -682,7 +790,7 @@ public class MainController {
 		return true;
 	}
 
-	private HashMap<String, String> getColumnsTypes(String tableName) {
+	public HashMap<String, String> getColumnsTypes(String tableName) {
 
 		HashMap<String, String> columnToType = null;
 		try {
@@ -805,7 +913,7 @@ public class MainController {
 		if (suspiciousTuple.isAnonymous()) {
 			return;
 		}
-		
+
 		for (int i = 0; i < tupleWitness.getTuples().size(); i++) {
 
 			DBTuple currTuple = tupleWitness.getTuples().get(i);
@@ -862,8 +970,8 @@ public class MainController {
 
 	private List<List<String>> getEdgeCauseColumnSetsByTGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
 
-		String warning = "";
-		warning += System.lineSeparator() + "Edge Column Sets By TGR" + System.lineSeparator();
+		String info = "";
+		info += System.lineSeparator() + "Edge Column Sets By TGR" + System.lineSeparator();
 
 		// Check if there is an update for the dstTupe that removes this witness
 		// from the srcTuple witnesses
@@ -874,16 +982,16 @@ public class MainController {
 		}
 
 		Rule newNFRule = rule.toNFRule();
-		warning += "The new rule: " + newNFRule.toString() + System.lineSeparator();
-		warning += rule.toString() + System.lineSeparator();
-		warning += "src tuple: " + srcTuple.toString() + System.lineSeparator() + "dst tuple: " + dstTuple.toString()
+		info += "The new rule: " + newNFRule.toString() + System.lineSeparator();
+		info += rule.toString() + System.lineSeparator();
+		info += "src tuple: " + srcTuple.toString() + System.lineSeparator() + "dst tuple: " + dstTuple.toString()
 				+ System.lineSeparator();
 
 		int indexOfSrcTuple = tupleWitness.getTuples().indexOf(srcTuple);
 		int indexOfDstTuple = tupleWitness.getTuples().indexOf(dstTuple);
 
-		warning += "src tuple index: " + indexOfSrcTuple + System.lineSeparator() + "dst tuple index: "
-				+ indexOfDstTuple + System.lineSeparator();
+		info += "src tuple index: " + indexOfSrcTuple + System.lineSeparator() + "dst tuple index: " + indexOfDstTuple
+				+ System.lineSeparator();
 		if (indexOfSrcTuple == indexOfDstTuple) {
 
 			System.out.println("FATAL in isEdgeByCGR because src tuple and dst tuple are the same");
@@ -892,20 +1000,20 @@ public class MainController {
 
 		List<List<String>> result = new ArrayList<List<String>>();
 		List<List<List<String>>> supSetsByLen = getSupSetsByLength(new ArrayList<String>(dstTuple.getColumns()));
-		warning += "Subsets by len: " + System.lineSeparator();
+		info += "Subsets by len: " + System.lineSeparator();
 		for (int len = 0; len < supSetsByLen.size(); len++) {
-			warning += "len = " + len + ":" + System.lineSeparator();
+			info += "len = " + len + ":" + System.lineSeparator();
 			for (List<String> subSet : supSetsByLen.get(len)) {
-				warning += subSet.toString() + System.lineSeparator();
+				info += subSet.toString() + System.lineSeparator();
 			}
 		}
-		warning += "===================================================" + System.lineSeparator();
+		info += "===================================================" + System.lineSeparator();
 
 		for (int len = 0; len < supSetsByLen.size(); len++) {
-			warning += "Iterating over len = " + len + " and the subsets count = " + supSetsByLen.get(len).size()
+			info += "Iterating over len = " + len + " and the subsets count = " + supSetsByLen.get(len).size()
 					+ System.lineSeparator();
 			for (List<String> subSet : supSetsByLen.get(len)) {
-				warning += "current sub set: " + subSet.toString() + System.lineSeparator();
+				info += "current sub set: " + subSet.toString() + System.lineSeparator();
 				// Get an assignment which assigns the values of the tuples
 				// (except dstTuple)
 				// variables to it's columns values including the values of of
@@ -916,25 +1024,30 @@ public class MainController {
 				// find the new rule, assign the assignment, add conditions for
 				// unchanged columns
 				// and try to find an assignment for the unchanged variables
-				warning += "Assignment = " + assignment.toString() + System.lineSeparator();
+				info += "Assignment = " + assignment.toString() + System.lineSeparator();
 
 				Condition condition = new Condition(newNFRule);
-				warning += "condition w/o assignment = " + condition.toString() + System.lineSeparator();
+				info += "condition w/o assignment = " + condition.toString() + System.lineSeparator();
 				condition.assign(assignment);
-				warning += "condition with assignment = " + condition.toString() + System.lineSeparator();
+				info += "condition with assignment = " + condition.toString() + System.lineSeparator();
 
 				HashMap<String, String> columnToVar = getColumnsVars(tupleWitness, dstTuple, subSet);
-				warning += "column to var: " + columnToVar.toString() + System.lineSeparator();
+				info += "column to var: " + columnToVar.toString() + System.lineSeparator();
 				HashMap<String, String> columnToType = getColumnsTypes(dstTuple.getTable());
 				for (String column : subSet) {
 					if (dstTuple.getValue(column).equals(".*")) {
 						continue;
 					}
 					String operator = "!=";
+					String type = "integer";
+					if (columnToType.get(column).toLowerCase().contains("text")
+							|| columnToType.get(column).toLowerCase().contains("char")) {
+						type = "string";
+					}
 					Variable colVar = new Variable(columnToVar.get(column), column, false, columnToVar.get(column),
-							columnToType.get(column));
+							type);
 					Variable constVar = new Variable(dstTuple.getValue(column), column, true, dstTuple.getValue(column),
-							columnToType.get(column));
+							type);
 					List<Variable> temp = new ArrayList<Variable>();
 					temp.add(colVar);
 					temp.add(constVar);
@@ -942,28 +1055,28 @@ public class MainController {
 					condition.addExternalFormula(conFormula);
 				}
 
-				warning += "condition after adding inequalities: " + condition.toString() + System.lineSeparator();
+				info += "condition after adding inequalities: " + condition.toString() + System.lineSeparator();
 
-				LOGGER.warning(warning);
-				warning = "";
+				LOGGER.info(info);
+				info = "";
 				if (condition.hasSatisfyingAssignment()) {
-					LOGGER.warning("adding subset: " + subSet.toString());
+					LOGGER.info("adding subset: " + subSet.toString());
 					result.add(subSet);
 				}
-				LOGGER.warning("------------------- FINISHED SUBSET");
+				LOGGER.info("------------------- FINISHED SUBSET");
 			}
 		}
 
-		LOGGER.warning("Result: " + result.toString());
-		LOGGER.warning(
+		LOGGER.info("Result: " + result.toString());
+		LOGGER.info(
 				"===============================================+++++++++++++++++=====================================");
 		return result;
 	}
 
 	private List<List<String>> getEdgeCauseColumnSetsByCGR(DBTuple srcTuple, DBTuple dstTuple, Witness tupleWitness) {
 
-		String warning = "";
-		warning += System.lineSeparator() + "Edge Column Sets By CGR" + System.lineSeparator();
+		String info = "";
+		info += System.lineSeparator() + "Edge Column Sets By CGR" + System.lineSeparator();
 
 		// Check if there is an update for the dstTupe that removes this witness
 		// from the srcTuple witnesses
@@ -973,15 +1086,15 @@ public class MainController {
 			System.exit(0);
 		}
 
-		warning += rule.toString() + System.lineSeparator();
-		warning += "src tuple: " + srcTuple.toString() + System.lineSeparator() + "dst tuple: " + dstTuple.toString()
+		info += rule.toString() + System.lineSeparator();
+		info += "src tuple: " + srcTuple.toString() + System.lineSeparator() + "dst tuple: " + dstTuple.toString()
 				+ System.lineSeparator();
 
 		int indexOfSrcTuple = tupleWitness.getTuples().indexOf(srcTuple);
 		int indexOfDstTuple = tupleWitness.getTuples().indexOf(dstTuple);
 
-		warning += "src tuple index: " + indexOfSrcTuple + System.lineSeparator() + "dst tuple index: "
-				+ indexOfDstTuple + System.lineSeparator();
+		info += "src tuple index: " + indexOfSrcTuple + System.lineSeparator() + "dst tuple index: " + indexOfDstTuple
+				+ System.lineSeparator();
 		if (indexOfSrcTuple == indexOfDstTuple) {
 
 			System.out.println("FATAL in isEdgeByCGR because src tuple and dst tuple are the same");
@@ -990,20 +1103,20 @@ public class MainController {
 
 		List<List<String>> result = new ArrayList<List<String>>();
 		List<List<List<String>>> supSetsByLen = getSupSetsByLength(new ArrayList<String>(dstTuple.getColumns()));
-		warning += "Subsets by len: " + System.lineSeparator();
+		info += "Subsets by len: " + System.lineSeparator();
 		for (int len = 0; len < supSetsByLen.size(); len++) {
-			warning += "len = " + len + ":" + System.lineSeparator();
+			info += "len = " + len + ":" + System.lineSeparator();
 			for (List<String> subSet : supSetsByLen.get(len)) {
-				warning += subSet.toString() + System.lineSeparator();
+				info += subSet.toString() + System.lineSeparator();
 			}
 		}
-		warning += "===================================================" + System.lineSeparator();
+		info += "===================================================" + System.lineSeparator();
 
 		for (int len = 0; len < supSetsByLen.size(); len++) {
-			warning += "Iterating over len = " + len + " and the subsets count = " + supSetsByLen.get(len).size()
+			info += "Iterating over len = " + len + " and the subsets count = " + supSetsByLen.get(len).size()
 					+ System.lineSeparator();
 			for (List<String> subSet : supSetsByLen.get(len)) {
-				warning += "current sub set: " + subSet.toString() + System.lineSeparator();
+				info += "current sub set: " + subSet.toString() + System.lineSeparator();
 				// Get an assignment which assigns the values of the tuples
 				// (except dstTuple)
 				// variables to it's columns values including the values of of
@@ -1015,22 +1128,27 @@ public class MainController {
 				// find the new rule, assign the assignment, add conditions for
 				// unchanged columns
 				// and try to find an assignment for the unchanged variables
-				warning += "Assignment = " + assignment.toString() + System.lineSeparator();
+				info += "Assignment = " + assignment.toString() + System.lineSeparator();
 
 				Condition condition = new Condition(tupleWitness.getRule());
-				warning += "condition w/o assignment = " + condition.toString() + System.lineSeparator();
+				info += "condition w/o assignment = " + condition.toString() + System.lineSeparator();
 				condition.assign(assignment);
-				warning += "condition with assignment = " + condition.toString() + System.lineSeparator();
+				info += "condition with assignment = " + condition.toString() + System.lineSeparator();
 
 				HashMap<String, String> columnToVar = getColumnsVars(tupleWitness, dstTuple, subSet);
-				warning += "column to var: " + columnToVar.toString() + System.lineSeparator();
+				info += "column to var: " + columnToVar.toString() + System.lineSeparator();
 				HashMap<String, String> columnToType = getColumnsTypes(dstTuple.getTable());
 				for (String column : subSet) {
 					String operator = "!=";
+					String type = "integer";
+					if (columnToType.get(column).toLowerCase().contains("text")
+							|| columnToType.get(column).toLowerCase().contains("char")) {
+						type = "string";
+					}
 					Variable colVar = new Variable(columnToVar.get(column), column, false, columnToVar.get(column),
-							columnToType.get(column));
+							type);
 					Variable constVar = new Variable(dstTuple.getValue(column), column, true, dstTuple.getValue(column),
-							columnToType.get(column));
+							type);
 					List<Variable> temp = new ArrayList<Variable>();
 					temp.add(colVar);
 					temp.add(constVar);
@@ -1038,20 +1156,20 @@ public class MainController {
 					condition.addExternalFormula(conFormula);
 				}
 
-				warning += "condition after adding inequalities: " + condition.toString() + System.lineSeparator();
+				info += "condition after adding inequalities: " + condition.toString() + System.lineSeparator();
 
-				// LOGGER.warning(warning);
-				warning = "";
+				LOGGER.info(info);
+				info = "";
 				if (condition.hasSatisfyingAssignment()) {
-					LOGGER.warning("adding subset: " + subSet.toString());
+					LOGGER.info("adding subset: " + subSet.toString());
 					result.add(subSet);
 				}
-				LOGGER.warning("------------------- FINISHED SUBSET");
+				LOGGER.info("------------------- FINISHED SUBSET");
 			}
 		}
 
-		LOGGER.warning("Result: " + result.toString());
-		LOGGER.warning(
+		LOGGER.info("Result: " + result.toString());
+		LOGGER.info(
 				"===============================================+++++++++++++++++=====================================");
 		return result;
 	}
@@ -1257,12 +1375,14 @@ public class MainController {
 			stmt.executeUpdate(sql);
 			stmt.close();
 
+			// remove for just for test
 			stmt = conn.createStatement();
-			sql = "INSERT INTO Games (ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen) VALUES "
+			sql = "INSERT INTO Games (ID, first_team, second_team,first_team_goals, second_team_goals, first_team_pen,second_team_pen) VALUES "
 					+ "(2,'Italy','Bayren',3,2,0,0);";
 			stmt.executeUpdate(sql);
 			stmt.close();
 
+			// remove for just for test
 			stmt = conn.createStatement();
 			sql = "INSERT INTO Games (ID, first_team, second_team, first_team_goals, second_team_goals, first_team_pen, second_team_pen) VALUES "
 					+ "(3,'Barcelona','Real',1,1,0,0);";
@@ -1301,6 +1421,7 @@ public class MainController {
 			stmt.executeUpdate(sql);
 			stmt.close();
 
+			// remove for just for test
 			// Insert values to countries table
 			stmt = conn.createStatement();
 			sql = "INSERT INTO Countries (ID, country, continent) VALUES " + "(1,'Italy','Asia');";
@@ -1316,6 +1437,13 @@ public class MainController {
 			sql = "INSERT INTO Countries (ID, country, continent) VALUES " + "(3,'Germany','Europe');";
 			stmt.executeUpdate(sql);
 			stmt.close();
+
+			// Must be removed
+			// stmt = conn.createStatement();
+			// sql = "INSERT INTO Countries (ID, country, continent) VALUES " +
+			// "(10,'Spain','Europe');";
+			// stmt.executeUpdate(sql);
+			// stmt.close();
 
 			// Insert values to allowed table
 			stmt = conn.createStatement();
@@ -1336,7 +1464,6 @@ public class MainController {
 			stmt = conn.createStatement();
 			sql = "INSERT INTO Allowed (ID, team) VALUES " + "(4,'Milan');";
 			stmt.executeUpdate(sql);
-
 			stmt.close();
 			conn.close();
 		} catch (Exception e) {
@@ -1377,6 +1504,7 @@ public class MainController {
 			while (rs.next()) {
 				String tableName = rs.getString(1);
 				tables.add(tableName);
+				m_tableToColumns.put(tableName, getColumns(tableName));
 				m_tableToID.put(tableName, new Integer(tableID));
 				tableID++;
 			}

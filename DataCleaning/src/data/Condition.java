@@ -156,13 +156,13 @@ public class Condition {
 
 		boolean hasSatAssignment = false;
 		List<ConditionalFormula> tempConstraints = new ArrayList<ConditionalFormula>();
-		String warning = System.lineSeparator() + "Checking for sat assignment" + System.lineSeparator();
+		String info = System.lineSeparator() + "Checking for sat assignment" + System.lineSeparator();
 		// Check if any formula of the lhsMappedFormulas has a satisfying
 		// assignment, if yes return true.
 		// To check that for each lhs formula append the external formula of the same type
 		// and check for satisfying assignment
-		warning += "Checking if any of the ORs are not contradiction : " + System.lineSeparator();
-		LOGGER.warning(warning);
+		info += "Checking if any of the ORs are not contradiction : " + System.lineSeparator();
+		LOGGER.info(info);
 		for (ConditionalFormula formula : m_lhsMappedFormulas) {
 			tempConstraints = cloneExternalFormulas();
 			tempConstraints.add(formula);
@@ -172,14 +172,14 @@ public class Condition {
 			}
 		}
 
-		warning = "";
-		warning += "Checking if the ANDs has a satisfying assignment: " + System.lineSeparator();
-		LOGGER.warning(warning);
+		info = "";
+		info += "Checking if the ANDs has a satisfying assignment: " + System.lineSeparator();
+		LOGGER.info(info);
 		// Get rhs string/integer formulas
 		tempConstraints = cloneExternalFormulas();
 		tempConstraints.addAll(m_rhsMappedFormulas);
 		hasSatAssignment = constraintsHasSatAssignment(tempConstraints);
-		LOGGER.warning(System.lineSeparator() + "returning:" + hasSatAssignment + System.lineSeparator());
+		LOGGER.info(System.lineSeparator() + "returning:" + hasSatAssignment + System.lineSeparator());
 		return hasSatAssignment;
 	}
 	
@@ -192,8 +192,8 @@ public class Condition {
 	
 	private boolean constraintsHasSatAssignment(List<ConditionalFormula> constraints) {
 		
-		String warning = System.lineSeparator() + "Checking constraints:" + System.lineSeparator();
-		warning += constraints.toString() + System.lineSeparator();
+		String info = System.lineSeparator() + "Checking constraints:" + System.lineSeparator();
+		info += constraints.toString() + System.lineSeparator();
 		List<ConditionalFormula> stringFormulas = new ArrayList<ConditionalFormula>();
 		List<ConditionalFormula> integerFormulas = new ArrayList<ConditionalFormula>();
 		for (ConditionalFormula formula : constraints) {
@@ -208,16 +208,16 @@ public class Condition {
 		boolean hasSolutionInt = hasSolutionInteger(integerFormulas);
 		boolean hasSolutionStr = hasSolutionString(stringFormulas);
 		
-		warning += "int has solution: " + hasSolutionInt + " string has solution: " + hasSolutionStr + System.lineSeparator();
+		info += "int has solution: " + hasSolutionInt + " string has solution: " + hasSolutionStr + System.lineSeparator();
 
 		if (hasSolutionInt && hasSolutionStr) {
-			warning += "returning true" + System.lineSeparator();
-			LOGGER.warning(warning);
+			info += "returning true" + System.lineSeparator();
+			LOGGER.info(info);
 			return true;
 		}
 
-		warning += "returning false" + System.lineSeparator();
-		LOGGER.warning(warning);
+		info += "returning false" + System.lineSeparator();
+		LOGGER.info(info);
 		return false;
 	}
 

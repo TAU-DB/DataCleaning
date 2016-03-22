@@ -23,17 +23,41 @@ function buildSpinnerMode() {
 	$("<div>").attr("class", "big ball").appendTo(bigconDiv);
 }
 
-function buildGraphModeContent(isEmpty) {
+function buildGraphModeContent(isEmpty, queryResult, query) {
 
 	var contentDiv = $("#content");
 	contentDiv.empty();
+	var queryCenter = $("<center>").appendTo(contentDiv);
+	var queryDiv = $("<div>").attr("id", "query_div").appendTo(queryCenter);
+	$("<h2>").attr("id", "query_title").text("Query:").appendTo(queryDiv);
+	var queryInput = $("<textarea>").attr("id", "query_textarea").appendTo(
+			queryDiv);
+	if (query != undefined) {
+		queryInput.val(query);
+	}
+	var runButton = $("<a>").attr("id", "run_button").attr("href", "#");
+	runButton.attr("onclick", "runQuery();return false;");
+	runButton.attr("class", "btn orange");
+	runButton.text("Run     ");
+	runButton.appendTo(queryDiv);
+	if (queryResult != undefined) {
+
+		$("<h2>").attr("id", "result_title").text("Result").appendTo(
+				queryCenter);
+		$("<div>").attr("id", "result_table").attr("class", "table-fill")
+				.appendTo(queryCenter);
+		fillQueryResultTable(queryResult, query);
+	}
+
 	var graphTitleCenter = $("<center>").appendTo(contentDiv);
 	$("<h2>").attr("id", "graph_title").text("Tuples Graph").appendTo(
 			graphTitleCenter);
 	$("<div>").attr("id", "graph_canvas").appendTo(contentDiv);
+
 	if (isEmpty == "0") {
-		$("<h2>").attr("id", "table_title").text("Question:").appendTo(contentDiv);
-		$("<h2>").attr("id", "question_table").attr("class", "table-fill")
+		$("<h2>").attr("id", "table_title").text("Question:").appendTo(
+				contentDiv);
+		$("<div>").attr("id", "question_table").attr("class", "table-fill")
 				.appendTo(contentDiv);
 		var buttonsDiv = $("<div>").attr("id", "buttons").appendTo(contentDiv);
 		var validateButton = $("<a>").attr("href", "#");
@@ -60,7 +84,7 @@ function buildQuestionModeContent() {
 	contentDiv.empty();
 	$("<h2>").attr("id", "table_title").text("Fill Tuple:")
 			.appendTo(contentDiv);
-	$("<h2>").attr("id", "question_table").attr("class", "table-fill")
+	$("<div>").attr("id", "question_table").attr("class", "table-fill")
 			.appendTo(contentDiv);
 	var buttonsDiv = $("<div>").attr("id", "buttons").appendTo(contentDiv);
 	var addButton = $("<a>").attr("href", "#");
@@ -68,6 +92,67 @@ function buildQuestionModeContent() {
 	addButton.attr("class", "btn green");
 	addButton.text("Add       ");
 	addButton.appendTo(buttonsDiv);
+}
+
+function fillQueryResultTable(queryResult, queryStr) {
+
+	var table = $("#result_table");
+	table.empty();
+
+	// Add the header
+	var thead = $("<thead>").appendTo(table);
+	var headerTR = $("<tr>").appendTo(thead);
+	for (var i = 0; i < queryResult[0].length; i++) {
+		$("<th>").attr("class", "text-left").text(queryResult[0][i]).appendTo(
+				headerTR);
+	}
+	$("<th>").attr("class", "text-left").text("").appendTo(headerTR);
+
+	// Add the rows
+	var tbody = $("<tbody>").attr("id", "result_table_body").appendTo(table);
+
+	// Add add row
+//	var addRow = $("<tr>").attr("id", "add_row").appendTo(tbody);
+//	for (var columnIndex = 0; columnIndex < queryResult[0].length; columnIndex++) {
+//
+//		var inputTD = $("<td>").attr("class", "text-left").appendTo(addRow);
+//		var textbox = $('<input/>');
+//		textbox.attr("type", "textbox");
+//		textbox.appendTo(inputTD);
+//	}
+//	var addRefTD = $("<td>").attr("class", "text-left").appendTo(addRow);
+//	var addRef = $("<a>").attr("row_index", rowIndex).attr("href", "#");
+//	addRef.attr("onclick", "addAnswer(" + "\"" + queryStr + "\""
+//			+ "); return false;");
+//	addRef.text("Add");
+//	addRef.appendTo(addRefTD);
+
+	for (var rowIndex = 1; rowIndex < queryResult.length; rowIndex++) {
+		var row = $("<tr>").attr("id", "row" + rowIndex).appendTo(tbody);
+		for (var columnIndex = 0; columnIndex < queryResult[rowIndex].length; columnIndex++) {
+			$("<td>").attr("class", "text-left").text(
+					queryResult[rowIndex][columnIndex]).appendTo(row);
+		}
+		var deleteRefTD = $("<td>").attr("class", "text-left").appendTo(row);
+		var deleteCheckbox = $("<input>").attr("id", "row_checkbox" + rowIndex).attr("type", "checkbox");
+		deleteCheckbox.appendTo(deleteRefTD);
+//		var deleteRef = $("<a>").attr("row_index", rowIndex).attr("href", "#");
+//		deleteRef.attr("onclick", "deleteAnswer(" + rowIndex + ", " + "\""
+//				+ queryStr + "\"" + ");return false;");
+//		deleteRef.text("Delete");
+//		deleteRef.appendTo(deleteRefTD);
+	}
+	
+	var rowCount = queryResult.length - 1; 
+	var lastRow = $("<tr>").attr("id", "last_row").appendTo(tbody);
+	for (var columnIndex = 0; columnIndex < queryResult[0].length; columnIndex++) {
+		$("<td>").attr("class", "text-left").text("").appendTo(lastRow);
+	}
+	var deleteRefTD = $("<td>").attr("class", "text-left").appendTo(lastRow);
+	var deleteRef = $("<a>").attr("href", "#");
+	deleteRef.attr("onclick", "deleteAnswer(" + rowCount + ");return false;");
+	deleteRef.text("Delete");
+	deleteRef.appendTo(deleteRefTD);
 }
 
 function updateQuestionTable(tuple) {
@@ -86,8 +171,13 @@ function updateQuestionTable(tuple) {
 
 	// Add the rows
 	var columns = tuple["columns"];
+	var columnsList = tuple["column_list"];
+	if (columnsList == undefined) {
+		columnsList = Object.keys(columns);
+	}
 	var tbody = $("<tbody>").attr("id", "table_body").appendTo(table);
-	for ( var column in columns) {
+	for (var i = 0; i < columnsList.length; i++) {
+		var column = columnsList[i];
 		var row = $("<tr>").appendTo(tbody);
 		$("<td>").attr("class", "text-left").text(column).appendTo(row);
 		$("<td>").attr("class", "text-left").text(columns[column])
@@ -131,6 +221,77 @@ function updateFillTable(tuple) {
 	}
 }
 
+function runQuery() {
+	var queryStr = $("#query_textarea").val();
+	buildSpinnerMode();
+
+	$.ajax({
+		type : "POST",
+		cache : false,
+		url : "UpdateServlet/RunQuery",
+		data : {
+			query : queryStr
+		}
+	}).done(function(result) {
+		buildContent(result);
+	});
+}
+
+function addAnswer(queryStr) {
+
+	var rowTDs = $("#add_row td");
+	var valuesToAdd = [];
+	for (var i = 0; i < rowTDs.length - 1; i++) {
+		valuesToAdd[i] = rowTDs[i].children[0].value;
+	}
+	alert(valuesToAdd);
+	buildSpinnerMode();
+
+	$.ajax({
+		type : "POST",
+		cache : false,
+		url : "UpdateServlet/AddAnswer",
+		data : {
+			query : queryStr,
+			values : valuesToAdd
+		}
+	}).done(function(result) {
+		buildFillTuplesContent(result);
+	});
+}
+
+function deleteAnswer(rowCount) {
+	var dataParam = {};
+	var rowsToDeleteCount = 0;
+	for (var rowIndex = 1; rowIndex <= rowCount; rowIndex++) {
+
+		var isRowChecked = $("#row_checkbox" + rowIndex).is(':checked');
+		if (isRowChecked == false) {
+			continue;
+		}
+		var rowValues = []
+		var rowTDs = $("#row" + rowIndex + " td");
+		for (var i = 0; i < rowTDs.length - 1; i++) {
+			rowValues[i] = rowTDs[i].textContent;
+		}
+		dataParam["row" + rowsToDeleteCount] = rowValues;
+		rowsToDeleteCount++;
+	}
+
+	buildSpinnerMode();
+
+	dataParam["row_delete_count"] = rowsToDeleteCount; 
+	
+	$.ajax({
+		type : "POST",
+		cache : false,
+		url : "UpdateServlet/DeleteAnswer",
+		data : dataParam
+	}).done(function(result) {
+		buildContent(result);
+	});
+}
+
 function validateTupleRequest() {
 	var tableName = getTupleTableName();
 	var columns = getTupleColumns();
@@ -138,7 +299,7 @@ function validateTupleRequest() {
 	var newValues = getTupleNewValues();
 
 	buildSpinnerMode();
-	
+
 	$.ajax({
 		type : "POST",
 		cache : false,
@@ -227,13 +388,15 @@ function addTupleRequest() {
 function buildContent(ajaxResult) {
 	var isEmpty = ajaxResult["is_empty"];
 	if (isEmpty == "1") {
-		buildGraphModeContent("1");
+		buildGraphModeContent("1", ajaxResult["query_result"],
+				ajaxResult["query"]);
 		return;
 	}
-	
+
 	var isGraph = ajaxResult["is_graph"];
 	if (isGraph == "1") {
-		buildGraphModeContent("0");
+		buildGraphModeContent("0", ajaxResult["query_result"],
+				ajaxResult["query"]);
 		var graph = ajaxResult["graph"];
 		var ranks = ajaxResult["ranks"];
 		var maxTuple = ajaxResult["max"];
@@ -244,6 +407,10 @@ function buildContent(ajaxResult) {
 	buildQuestionModeContent();
 	var tuple = ajaxResult["tuple"];
 	updateFillTable(tuple);
+}
+
+function buildFillTuplesContent(ajaxResult) {
+	// TODO
 }
 
 function getTupleTableName() {

@@ -1,6 +1,8 @@
 
-var colors = [ "#FF0000", "#FFFF00", "#008000", "#008080", "#00FFFF",
-		"#FF00FF", "#0000FF", "#C0C0C0", "#00FF00", "#000080" ];
+//var colors = [ "#FF0000", "#FFFF00", "#008000", "#008080", "#00FFFF",
+//		"#FF00FF", "#0000FF", "#C0C0C0", "#00FF00", "#000080" ];
+var colors = [ "#D3FF59", "#6AB3EB", "#FF696B", "#8CDE9C", "#FF87E7",
+		"#FF87E7", "#8CFFF5", "#8CFFDE", "#FFA18C", "#3BFF55" ];
 function buildGraph(graphMap, ranks) {
 	$(document).ready(
 			function() {
@@ -9,18 +11,27 @@ function buildGraph(graphMap, ranks) {
 				var width = $("#graph_canvas").width();
 				var height = $("#graph_canvas").height();
 				
-			    var myDiagram = go.GraphObject.make(go.Diagram, "graph_canvas",  // create a Diagram for
+			    var myDiagram = go.GraphObject.make(go.Diagram, "graph_canvas",  // create
+																					// a
+																					// Diagram
+																					// for
 														// the DIV HTML element
 			            {
-			          //initialAutoScale: go.Diagram.Uniform,  // an initial automatic zoom-to-fit
-			         // contentAlignment: go.Spot.Center,  // align document to the center of the viewport
+			           initialAutoScale: go.Diagram.Uniform, // an initial
+						// automatic zoom-to-fit
+			         contentAlignment: go.Spot.Center, // align document
+						// to the center of the viewport
 			          layout:
-			        	  go.GraphObject.make(go.ForceDirectedLayout,  // automatically spread nodes apart
-			              { defaultSpringLength: 50, defaultElectricalCharge: 120 })
+			        	  go.GraphObject.make(go.ForceDirectedLayout,  // automatically
+																		// spread
+																		// nodes
+																		// apart
+			              { defaultSpringLength: 50, defaultElectricalCharge: 30 })
 			        });
 			    // define a simple Node template
 			    myDiagram.nodeTemplate =
-			    	go.GraphObject.make(go.Node, "Auto",  // the Shape will go around the
+			    	go.GraphObject.make(go.Node, "Auto",  // the Shape will go
+															// around the
 										// TextBlock
 			    			go.GraphObject.make(go.Shape, "RoundedRectangle",
 			          // Shape.fill is bound to Node.data.color
@@ -34,7 +45,10 @@ function buildGraph(graphMap, ranks) {
 			 // replace the default Link template in the linkTemplateMap
 			    var makefunc = go.GraphObject.make;
 			    myDiagram.linkTemplate =
-			    	makefunc(go.Link,  { curve: go.Link.Bezier, curviness : 10 },  // the whole link panel
+			    	makefunc(go.Link,  { curve: go.Link.Bezier, curviness : 10 },  // the
+																					// whole
+																					// link
+																					// panel
 			    			makefunc(go.Shape,  // the link shape
 			          { stroke: "black" }),
 			          makefunc(go.Shape,  // the arrowhead

@@ -5,22 +5,77 @@ body {
 }
 
 #graph_title {
-   color: #fafafa;
-   font-size: 30px;
-   font-weight: 400;
-   font-style:normal;
-   font-family: "Roboto", helvetica, arial, sans-serif;
-   text-shadow: -1px -1px 1px rgba(0, 0, 0, 0.1);
-   text-transform:uppercase;
-   margin-top: 2%; 
-   margin-bottom: 0%; 
-   margin: 1%
+	color: #fafafa;
+	font-size: 30px;
+	font-weight: 400;
+	font-style: normal;
+	font-family: "Roboto", helvetica, arial, sans-serif;
+	text-shadow: -1px -1px 1px rgba(0, 0, 0, 0.1);
+	text-transform: uppercase;
+	margin-top: 2%;
+	margin-bottom: 0%;
+	margin: 1%
+}
+
+#result_title {
+	color: #fafafa;
+	font-size: 30px;
+	font-weight: 400;
+	font-style: normal;
+	font-family: "Roboto", helvetica, arial, sans-serif;
+	text-shadow: -1px -1px 1px rgba(0, 0, 0, 0.1);
+	text-transform: uppercase;
+	margin-top: 2%;
+	margin-bottom: 0%;
+	margin: 1%
 }
 
 #graph_canvas {
 	height: 600px;
-	background: #FFFFFF; 
-	border: 2px solid black; 
-	margin: 1%; 
+	background: #FFFFFF;
+	border: 2px solid black;
+	margin: 1%;
 	border-radius: 3px
+}
+
+#query_title {
+	color: #fafafa;
+	font-size: 30px;
+	font-weight: 400;
+	font-style: normal;
+	font-family: "Roboto", helvetica, arial, sans-serif;
+	text-shadow: -1px -1px 1px rgba(0, 0, 0, 0.1);
+	text-transform: uppercase;
+	margin-top: 2%;
+	margin-bottom: 0%;
+	margin: 1%;
+	display: inline-block;
+    vertical-align: middle;
+}
+
+#query_textarea {
+	rows: 100;
+	cols: 200;
+	font-size: 14px;
+	font-weight: 400;
+	font-style: normal;
+	margin-top: 2%;
+	margin-bottom: 0%;
+	margin: 1%;
+	width: 600px;
+	height: 100px;
+	overflow-y: auto;
+	border: 2px solid black;
+	border-radius: 3px;
+	display: inline-block;
+    vertical-align: middle;
+}
+
+#run_button {
+	display: inline-block;
+    vertical-align: middle;
+}
+
+#query_div {
+	text-align: center;
 }
