@@ -27,7 +27,7 @@ function buildGraphModeContent(isEmpty, queryResult, query) {
 
 	var contentDiv = $("#content");
 	contentDiv.empty();
-	var queryCenter = $("<center>").appendTo(contentDiv);
+	var queryCenter = $("<center>").attr("id", "query_center").appendTo(contentDiv);
 	var queryDiv = $("<div>").attr("id", "query_div").appendTo(queryCenter);
 	$("<h2>").attr("id", "query_title").text("Query:").appendTo(queryDiv);
 	var queryInput = $("<textarea>").attr("id", "query_textarea").appendTo(
@@ -40,7 +40,7 @@ function buildGraphModeContent(isEmpty, queryResult, query) {
 	runButton.attr("class", "btn orange");
 	runButton.text("Run     ");
 	runButton.appendTo(queryDiv);
-	if (queryResult != undefined) {
+	if (queryResult != undefined && queryResult.length > 0) {
 
 		$("<h2>").attr("id", "result_title").text("Result").appendTo(
 				queryCenter);
@@ -223,7 +223,7 @@ function updateFillTable(tuple) {
 
 function runQuery() {
 	var queryStr = $("#query_textarea").val();
-	buildSpinnerMode();
+//	buildSpinnerMode();
 
 	$.ajax({
 		type : "POST",
@@ -233,8 +233,26 @@ function runQuery() {
 			query : queryStr
 		}
 	}).done(function(result) {
-		buildContent(result);
+		updateQueryResult(result);
+//		buildContent(result);
 	});
+}
+
+function updateQueryResult(ajaxResult) {
+
+	var queryResult = ajaxResult["query_result"];
+	var queryStr = ajaxResult["query"];
+	var queryCenter = $("#query_center");
+	var queryCenterChildren = $("#query_center").children();
+	if (queryResult != undefined) {
+		if (queryCenterChildren.length == 1) {
+			$("<h2>").attr("id", "result_title").text("Result").appendTo(
+					queryCenter);
+			$("<div>").attr("id", "result_table").attr("class", "table-fill")
+					.appendTo(queryCenter);
+		}
+		fillQueryResultTable(queryResult, queryStr);
+	}
 }
 
 function addAnswer(queryStr) {
