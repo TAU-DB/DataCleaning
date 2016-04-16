@@ -48,6 +48,7 @@ public class UpdateServlet extends HttpServlet {
 
 		String queryStr = null;
 		JSONArray queryResult = null;
+		boolean isRunQuery = false;
 		if (request.getPathInfo().equals("/ValidateTuple")) {
 			validateTuple(request, response);
 		}
@@ -66,6 +67,7 @@ public class UpdateServlet extends HttpServlet {
 
 		if (request.getPathInfo().equals("/RunQuery")) {
 			setLastQuery(request, response);
+			isRunQuery = true;
 		}
 
 		if (request.getPathInfo().equals("/DeleteAnswer")) {
@@ -85,6 +87,13 @@ public class UpdateServlet extends HttpServlet {
 			result.put("query", queryStr);
 		}
 
+		if (isRunQuery) {
+
+			insertJsonObjectToResponse(result, response);
+			response.setStatus(200);
+			return;
+		}
+		
 		mainController.updateValidatedDB();
 		Graph graph = mainController.generateGraph();
 		graph.calculateEdgesProbabilities();

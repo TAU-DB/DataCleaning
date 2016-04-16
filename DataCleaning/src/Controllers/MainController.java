@@ -122,14 +122,14 @@ public class MainController {
 
 		m_tableToID = new HashMap<String, Integer>();
 		m_tableToColumns = new HashMap<String, List<String>>();
-		m_dbName = "C:" + File.separator + "temp" + File.separator + "wcdata.db";
-//		m_dbName = "C:" + File.separator + "temp" + File.separator + "example.db";
+//		m_dbName = "C:" + File.separator + "temp" + File.separator + "wcdata.db";
+		m_dbName = "C:" + File.separator + "temp" + File.separator + "example.db";
 
-//		buildSimpleDB();
+		buildSimpleDB();
 		buildValidatedDB();
 
-//		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
-		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules_wcdata2.xml");
+		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules.xml");
+//		RulesReader reader = new RulesReader("C:" + File.separator + "temp" + File.separator + "rules_wcdata2.xml");
 		m_rules = reader.getRules();
 		m_witManager = new WitnessesManager(reader.getRules(), m_dbName);
 	}
@@ -185,7 +185,6 @@ public class MainController {
 
 		JSONArray result = new JSONArray();
 		String sqlQuery = query.getSQLQuery();
-		// System.out.println(sqlQuery);
 		try {
 
 			Connection dbConn = null;
