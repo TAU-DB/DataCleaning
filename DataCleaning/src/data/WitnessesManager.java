@@ -1,6 +1,5 @@
 package data;
 
-import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -9,10 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.sun.org.apache.xml.internal.serialize.LineSeparator;
 
 import Controllers.MainController;
 
@@ -30,40 +26,47 @@ public class WitnessesManager {
 	}
 
 	public void calculateWitnesses() {
-
+//		System.out.println("aaa");
 		m_witnesses.clear();
+		long start = System.currentTimeMillis();
 		for (Rule rule : m_rules) {
 			if (rule.isTupleGenerating()) {
+//				System.out.println("bbb");
 				extractTGRWitnesses(rule);
 			} else {
+//				System.out.println("ccc");
 				extractCGRWitnesses(rule);
 			}
 		}
+		System.out.println("calculated witnesses in " + (System.currentTimeMillis() - start));
+		start = System.currentTimeMillis();
 		addProofWitnesses();
+		System.out.println("calculated proofs in " + (System.currentTimeMillis() - start));
 		distinct();
 
 		String info = "========= Witnesses after distinct =========";
 		info += getWitnessesStr();
 		LOGGER.info(info);
+//		System.out.println(info);
 	}
 
 	public void addRule(Rule rule) {
 		m_rules.add(rule);
 	}
-	
+
 	public List<Rule> getRules() {
 		return m_rules;
 	}
-	
+
 	public List<Rule> getCauseRules(DBTuple tuple) {
-		
+
 		List<Rule> causeRules = new ArrayList<Rule>();
 		for (Witness witness : m_witnesses) {
 			if (witness.getTuples().contains(tuple)) {
 				causeRules.add(witness.getRule());
 			}
 		}
-		
+
 		return causeRules;
 	}
 
@@ -99,7 +102,7 @@ public class WitnessesManager {
 
 		for (Witness witness : witnesses) {
 			for (DBTuple tuple : witness.getTuples()) {
-				
+
 				if (!suspicious.contains(tuple) && tuple.isAnonymous()) {
 					suspicious.add(tuple);
 					continue;
@@ -107,15 +110,16 @@ public class WitnessesManager {
 				if (tuple.isAnonymous()) {
 					continue;
 				}
-				
+
 				MainController mainController = MainController.getInstance();
 				List<String> conditionalColumns = getConditionalColumns(tuple);
 				int rowIndex = mainController.getRowIndex(tuple);
-				
+//				System.out.println(tuple.toString());
+//				System.out.println("r i = " + rowIndex);
 				if (rowIndex == -1) {
 					continue;
 				}
-				
+
 				boolean isValidated = true;
 
 				try {
@@ -125,24 +129,29 @@ public class WitnessesManager {
 					validatedDBConn = DriverManager.getConnection("jdbc:sqlite:" + mainController.getValidatedDBName());
 
 					stmt = validatedDBConn.createStatement();
+
 					String sql = "SELECT * FROM " + tuple.getTable() + " WHERE rowid = " + rowIndex + ";";
 					ResultSet rs = stmt.executeQuery(sql);
+//					System.out.println(sql);
 					rs.next();
 					for (String conColumn : conditionalColumns) {
-						if (rs.getString(conColumn).equals("0")) {
+						String val = rs.getString(conColumn);
+//						System.out.println("val = " + val);
+						if (val.equals("0")) {
 							isValidated = false;
 						}
 					}
 					rs.close();
 					stmt.close();
-					
+
 					validatedDBConn.close();
 				} catch (Exception e) {
 					System.err.println("In update validated DB " + e.getClass().getName() + ": " + e.getMessage());
 					e.printStackTrace();
 					System.exit(0);
 				}
-				
+
+//				System.out.println("is validated = " + isValidated);
 				if (!suspicious.contains(tuple) && !isValidated) {
 					suspicious.add(tuple);
 				}
@@ -155,6 +164,7 @@ public class WitnessesManager {
 			info += getConditionalColumns(tuple).toString() + System.lineSeparator();
 		}
 		LOGGER.info(info);
+//		System.out.println(info);
 		return suspicious;
 	}
 
@@ -169,7 +179,7 @@ public class WitnessesManager {
 			stmt = conn.createStatement();
 			String sql = rule.getFalseQuery();
 			ResultSet rs = stmt.executeQuery(sql);
-
+			
 			while (rs.next()) {
 				int rsColumnIndex = 1;
 				List<DBTuple> tuples = new ArrayList<DBTuple>();
@@ -189,11 +199,15 @@ public class WitnessesManager {
 				}
 				Witness witness = new Witness(rule, tuples);
 				m_witnesses.add(witness);
-
+//				System.out.println("reached info");
 				String info = System.lineSeparator() + "-------------------------------" + System.lineSeparator();
 				info += rule.toString() + System.lineSeparator();
+//				System.out.println("rule string info");
 				info += witness.toString() + System.lineSeparator();
+
+//				System.out.println("wittt info");
 				info += "-------------------------------" + System.lineSeparator();
+//				System.out.println("reached logger");
 				LOGGER.info(info);
 			}
 
@@ -356,7 +370,7 @@ public class WitnessesManager {
 								CCVars.add(var.getName());
 							}
 						}
-						
+
 						boolean hasLHSDefinedVar = false;
 						for (String var : CCVars) {
 							if (!rhsDefinedVars.contains(var)) {
@@ -414,15 +428,16 @@ public class WitnessesManager {
 
 		return true;
 	}
-	
+
 	private List<String> getConditionalColumns(DBTuple suspiciousTuple) {
-		
+
 		List<String> result = new ArrayList<String>();
 		for (Witness witness : m_witnesses) {
 			if (!witness.getTuples().contains(suspiciousTuple)) {
 				continue;
 			}
 			int tupleRFIndex = witness.getTuples().indexOf(suspiciousTuple);
+//			System.out.println("the wit = " + witness.toString() + " contains the tuple = " + suspiciousTuple.toString() + "  at index = " + tupleRFIndex);
 			List<String> currConditionalColumns = witness.getRule().getConditionalColumns(tupleRFIndex);
 			for (String column : currConditionalColumns) {
 				if (!result.contains(column)) {
@@ -430,7 +445,7 @@ public class WitnessesManager {
 				}
 			}
 		}
-		
+
 		return result;
 	}
 

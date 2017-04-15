@@ -30,7 +30,9 @@
 		MainController mainController = MainController.getInstance();
 		Graph graph = mainController.generateGraph();
 		graph.calculateEdgesProbabilities();
+		long start = System.currentTimeMillis();
 		HashMap<DBTuple, Double> ranks = mainController.calculateRanks(graph);
+		System.out.println("Calculated ranks in " + (System.currentTimeMillis() - start));
 		String ranksMapStr = MainController.convertRanksMapToStr(ranks);
 		DBTuple maxRankedTuple = MainController.getMaxRankTuple(ranks);
 		String maxTupleJSMap = "{}";

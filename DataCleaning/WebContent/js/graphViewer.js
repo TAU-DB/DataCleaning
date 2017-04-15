@@ -17,7 +17,7 @@ function buildGraph(graphMap, ranks) {
 																					// for
 														// the DIV HTML element
 			            {
-			           initialAutoScale: go.Diagram.Uniform, // an initial
+			    	 //initialAutoScale: go.Diagram.UniformToFill, // an initial
 						// automatic zoom-to-fit
 			         contentAlignment: go.Spot.Center, // align document
 						// to the center of the viewport
@@ -26,7 +26,7 @@ function buildGraph(graphMap, ranks) {
 																		// spread
 																		// nodes
 																		// apart
-			              { defaultSpringLength: 50, defaultElectricalCharge: 30 })
+			              { defaultSpringLength: 80, defaultElectricalCharge: 50 })
 			        });
 			    // define a simple Node template
 			    myDiagram.nodeTemplate =
@@ -65,19 +65,30 @@ function buildGraph(graphMap, ranks) {
 			            new go.Binding("text", "text"))
 			        )
 			      );
-			    
+			    myDiagram.scale = 2;
 				var neighborsMap = graphMap["neighbors"];
 				var tablesIDsMap = graphMap["tables_ids"];
 
 				var nodes = [];
 				var edges = [];
+				var count = {};
 				for ( var source in neighborsMap) {
 					var nodeName = source + " \n " + (Math.round(ranks[source] * 1000) / 1000);
 					var tableID = tablesIDsMap[source];
+					if (count[tableID] == undefined) {
+						count[tableID] = 0;
+					}
+					count[tableID] += 1;
 					var colorIndex = tableID % colors.length;
 					nodes.push({ key: nodeName, color: colors[colorIndex] });
 				}
 
+				var str = "";
+				for (var table_id in count) {
+					str += table_id + "    " + count[table_id] + "\n";
+				}
+				//alert("The vertexes count is " + nodes.length);
+				//alert(str);
 				for ( var source in neighborsMap) {
 					var srcNodeName = source + " \n " + (Math.round(ranks[source] * 1000) / 1000);
 					var neighbors = neighborsMap[source];
@@ -89,6 +100,7 @@ function buildGraph(graphMap, ranks) {
 						edges.push({ from: srcNodeName, to: dstNodeName, text: edgeProb.toString()});
 					}
 				}
+				
 				
 
 			    // but use the default Link template, by not setting

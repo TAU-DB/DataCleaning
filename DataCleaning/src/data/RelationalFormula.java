@@ -5,16 +5,16 @@ import java.util.List;
 public class RelationalFormula extends Formula {
 
 	private String m_table;
-	
+
 	public RelationalFormula(String table, List<Variable> variables) {
 		super(variables);
 		m_table = table;
 	}
-	
+
 	public String getTable() {
 		return m_table;
 	}
-	
+
 	@Override
 	public String toString() {
 		String varStr = "";

@@ -103,6 +103,9 @@ public class UpdateServlet extends HttpServlet {
 			if (mainController.isAnonymousTupleValidated(anonymousTuple)) {
 				result = new JSONObject();
 				result.put("is_graph", "0");
+//				result.put("is_empty", "0");
+//				result.put("is_graph", "1");
+//				result.put("graph", graph.toJSONObject());
 				result.put("tuple", anonymousTuple.toJSONObject());
 				insertJsonObjectToResponse(result, response);
 				response.setStatus(200);
@@ -242,7 +245,9 @@ public class UpdateServlet extends HttpServlet {
 		List<DatalogQuery> queries = mainController.getLastQueries();
 		if (queries != null) {
 			for (DatalogQuery query : queries) {
+//				System.out.println("converting query");
 				String sqlQuery = query.getSQLQuery();
+//				System.out.println(sqlQuery);
 				resultArr.addAll(mainController.runQuery(query));
 				LOGGER.info("Running the query: " + sqlQuery);
 			}

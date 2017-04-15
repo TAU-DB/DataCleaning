@@ -6,20 +6,27 @@ public class Witness {
 
 	private Rule m_rule;
 	private List<DBTuple> m_tuples;
-	
+
 	public Witness(Rule rule, List<DBTuple> tuples) {
 		m_rule = rule;
 		m_tuples = tuples;
+		// update cause columns in the tuples
+		for (int i = 0; i < tuples.size(); i++) {
+			List<String> causeColumns = rule.getConditionalColumns(i);
+			for (String colName : causeColumns) {
+				tuples.get(i).addCauseColumn(colName);
+			}
+		}
 	}
-	
+
 	public Rule getRule() {
 		return m_rule;
 	}
-	
+
 	public List<DBTuple> getTuples() {
 		return m_tuples;
 	}
-	
+
 	@Override
 	public String toString() {
 		String result = "{ ";
@@ -33,29 +40,29 @@ public class Witness {
 		result += " }";
 		return result;
 	}
-	
+
 	@Override
 	public boolean equals(Object o) {
 		Witness witness = (Witness) o;
-		
+
 		if (!witness.getRule().toString().equals(m_rule.toString())) {
 			return false;
 		}
-		
+
 		if (!WitnessesManager.tuplesListsEqual(witness.getTuples(), m_tuples)) {
 			return false;
 		}
-		
+
 		return true;
 	}
-	
-	@Override 
+
+	@Override
 	public int hashCode() {
 		return 0;
 	}
-	
+
 	public Witness cloneWithNFRule() {
-		
+
 		return new Witness(m_rule.toNFRule(), m_tuples);
 	}
 }

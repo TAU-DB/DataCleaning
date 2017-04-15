@@ -27,9 +27,12 @@ function buildGraphModeContent(isEmpty, queryResult, query) {
 
 	var contentDiv = $("#content");
 	contentDiv.empty();
+//	<img src="smiley.gif" alt="Smiley face" height="42" width="42">
 	var queryCenter = $("<center>").attr("id", "query_center").appendTo(contentDiv);
+	$("<img>").attr("id", "logo").attr("src", "images/LOGO_3.png").appendTo(queryCenter);
 	var queryDiv = $("<div>").attr("id", "query_div").appendTo(queryCenter);
 	$("<h2>").attr("id", "query_title").text("Query:").appendTo(queryDiv);
+	document.getElementById("query_div").style.display = "none";
 	var queryInput = $("<textarea>").attr("id", "query_textarea").appendTo(
 			queryDiv);
 	if (query != undefined) {
@@ -49,17 +52,13 @@ function buildGraphModeContent(isEmpty, queryResult, query) {
 		fillQueryResultTable(queryResult, query);
 	}
 
-	var graphTitleCenter = $("<center>").appendTo(contentDiv);
-	$("<h2>").attr("id", "graph_title").text("Tuples Graph").appendTo(
-			graphTitleCenter);
-	$("<div>").attr("id", "graph_canvas").appendTo(contentDiv);
-
 	if (isEmpty == "0") {
-		$("<h2>").attr("id", "table_title").text("Question:").appendTo(
-				contentDiv);
+		var questionCenter = $("<center>").attr("id", "question_center").appendTo(contentDiv);
+		$("<h2>").attr("id", "table_title").text("Please validate/correct this tuple:").appendTo(
+				questionCenter);
 		$("<div>").attr("id", "question_table").attr("class", "table-fill")
-				.appendTo(contentDiv);
-		var buttonsDiv = $("<div>").attr("id", "buttons").appendTo(contentDiv);
+				.appendTo(questionCenter);
+		var buttonsDiv = $("<div>").attr("id", "buttons").appendTo(questionCenter);
 		var validateButton = $("<a>").attr("href", "#");
 		validateButton.attr("onclick", "validateTupleRequest();return false;");
 		validateButton.attr("class", "btn green");
@@ -75,18 +74,30 @@ function buildGraphModeContent(isEmpty, queryResult, query) {
 		updateButton.attr("class", "btn orange");
 		updateButton.text("Update    ");
 		updateButton.appendTo(buttonsDiv);
+	} else {
+		var noVioCenter = $("<center>").attr("id", "no_violations_center").appendTo(contentDiv);
+		$("<h1>").attr("id", "no_violations").text("No violations").appendTo(
+				noVioCenter);
 	}
+	$("<hr>").appendTo(contentDiv);
+	var graphTitleCenter = $("<center>").appendTo(contentDiv);
+	$("<h2>").attr("id", "graph_title").text("Tuples Graph").appendTo(
+			graphTitleCenter);
+	$("<div>").attr("id", "graph_canvas").appendTo(contentDiv);
 }
 
 function buildQuestionModeContent() {
 
 	var contentDiv = $("#content");
 	contentDiv.empty();
-	$("<h2>").attr("id", "table_title").text("Fill Tuple:")
-			.appendTo(contentDiv);
+	var questionCenter = $("<center>").attr("id", "fill_question_center").appendTo(contentDiv);
+	$("<img>").attr("id", "logo").attr("src", "images/LOGO_3.png").appendTo(questionCenter);
+	
+	$("<h2>").attr("id", "table_title").text("Adding new tuple:")
+			.appendTo(questionCenter);
 	$("<div>").attr("id", "question_table").attr("class", "table-fill")
-			.appendTo(contentDiv);
-	var buttonsDiv = $("<div>").attr("id", "buttons").appendTo(contentDiv);
+			.appendTo(questionCenter);
+	var buttonsDiv = $("<div>").attr("id", "buttons").appendTo(questionCenter);
 	var addButton = $("<a>").attr("href", "#");
 	addButton.attr("onclick", "addTupleRequest();return false;");
 	addButton.attr("class", "btn green");
@@ -186,7 +197,9 @@ function updateQuestionTable(tuple) {
 		var textbox = $('<input/>');
 		textbox.attr("id", column);
 		textbox.attr("type", "textbox");
+		textbox.val(columns[column]) 
 		textbox.appendTo(inputTD);
+		document.getElementById(column).style.fontSize = "30px";
 	}
 }
 
@@ -214,6 +227,7 @@ function updateFillTable(tuple) {
 			textbox.attr("id", column);
 			textbox.attr("type", "textbox");
 			textbox.appendTo(inputTD);
+			document.getElementById(column).style.fontSize = "30px";
 		} else {
 			$("<td>").attr("class", "text-left").text(columns[column])
 					.appendTo(row);
@@ -262,7 +276,7 @@ function addAnswer(queryStr) {
 	for (var i = 0; i < rowTDs.length - 1; i++) {
 		valuesToAdd[i] = rowTDs[i].children[0].value;
 	}
-	alert(valuesToAdd);
+	//alert(valuesToAdd);
 	buildSpinnerMode();
 
 	$.ajax({
