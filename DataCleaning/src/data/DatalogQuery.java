@@ -105,7 +105,7 @@ public class DatalogQuery {
 			if (formula instanceof ConditionalFormula) {
 				continue;
 			}
-			
+
 			if (currIndex == index) {
 				return ((RelationalFormula) formula);
 			}
@@ -120,15 +120,15 @@ public class DatalogQuery {
 		HashMap<String, String> variableToTableAlias = getVariableToTableAlias(lhs);
 		List<String> relFormulasTables = getRelationalFormulasTables(lhs);
 		int relFormulaCount = getRelationalFormulaCount(lhs);
-		
+
 		String sql = "SELECT ";
 		String selectColumnsStr = "";
 		for (Formula formula : lhs) {
-			
+
 			if (formula instanceof ConditionalFormula) {
 				continue;
 			}
-			
+
 			for (int i = 0; i < formula.getVariableCount(); i++) {
 				Variable var = formula.getVariableAt(i);
 				selectColumnsStr += variableToTableAlias.get(var.getName()) + "." + var.getColumn() + ", ";
@@ -136,7 +136,7 @@ public class DatalogQuery {
 		}
 		selectColumnsStr = selectColumnsStr.substring(0, selectColumnsStr.length() - 2);
 		sql += selectColumnsStr;
-		
+
 		sql += " FROM ";
 		for (int i = 0; i < relFormulaCount; i++) {
 
@@ -145,7 +145,7 @@ public class DatalogQuery {
 				sql += ", ";
 			}
 		}
-		
+
 		boolean hasConditionalFormula = false;
 		String whereConStr = "";
 		for (int i = 0; i < lhs.size(); i++) {
@@ -161,7 +161,7 @@ public class DatalogQuery {
 
 			whereConStr += " AND ";
 		}
-		
+
 		for (int i = 0; i < rhs.size(); i++) {
 			hasConditionalFormula = true;
 			ConditionalFormula conFormula = (ConditionalFormula) rhs.get(i);
@@ -189,7 +189,8 @@ public class DatalogQuery {
 		String sql = "SELECT DISTINCT ";
 		for (int i = 0; i < m_headVariables.size(); i++) {
 			String headVar = m_headVariables.get(i);
-			sql += variableToTableAlias.get(headVar) + "." + m_variablesHash.get(headVar).getColumn();
+			sql += variableToTableAlias.get(headVar) + "." + m_variablesHash.get(headVar).getColumn() + " AS "
+					+ variableToTableAlias.get(headVar) + "_" + m_variablesHash.get(headVar).getColumn();
 			if (i < m_headVariables.size() - 1) {
 				sql += ", ";
 			}
@@ -420,6 +421,7 @@ public class DatalogQuery {
 			variables.add(var);
 		} else {
 			String varName = rhsVar.trim().substring(1, rhsVar.trim().length());
+//			System.out.println(varName);
 			Variable cpyVar = m_variablesHash.get(varName);
 			Variable var = new Variable(varName, cpyVar.getName(), false, cpyVar.getValue(), cpyVar.getType());
 			variables.add(var);

@@ -76,7 +76,7 @@ public class Condition {
 		}
 		return lhs + " || " + rhs;
 	}
-	
+
 	public void addExternalFormula(ConditionalFormula formula) {
 		Variable lhsVar = formula.getVariableAt(0);
 		if (lhsVar.getType().toLowerCase().equals("string")) {
@@ -85,7 +85,7 @@ public class Condition {
 		}
 		m_externalIntFormulas.add(formula);
 	}
-	
+
 	private void addLHSFormula(ConditionalFormula formula) {
 		String operator = formula.getOperator();
 		String negOperator = getOppositeOperator(operator);
@@ -159,7 +159,8 @@ public class Condition {
 		String info = System.lineSeparator() + "Checking for sat assignment" + System.lineSeparator();
 		// Check if any formula of the lhsMappedFormulas has a satisfying
 		// assignment, if yes return true.
-		// To check that for each lhs formula append the external formula of the same type
+		// To check that for each lhs formula append the external formula of the
+		// same type
 		// and check for satisfying assignment
 		info += "Checking if any of the ORs are not contradiction : " + System.lineSeparator();
 		LOGGER.info(info);
@@ -182,16 +183,16 @@ public class Condition {
 		LOGGER.info(System.lineSeparator() + "returning:" + hasSatAssignment + System.lineSeparator());
 		return hasSatAssignment;
 	}
-	
+
 	private List<ConditionalFormula> cloneExternalFormulas() {
 		List<ConditionalFormula> externalFormulas = new ArrayList<ConditionalFormula>();
 		externalFormulas.addAll(m_externalIntFormulas);
 		externalFormulas.addAll(m_externalStringFormulas);
 		return externalFormulas;
 	}
-	
+
 	private boolean constraintsHasSatAssignment(List<ConditionalFormula> constraints) {
-		
+
 		String info = System.lineSeparator() + "Checking constraints:" + System.lineSeparator();
 		info += constraints.toString() + System.lineSeparator();
 		List<ConditionalFormula> stringFormulas = new ArrayList<ConditionalFormula>();
@@ -207,8 +208,9 @@ public class Condition {
 		// Check if integer variables & string variables has a solution
 		boolean hasSolutionInt = hasSolutionInteger(integerFormulas);
 		boolean hasSolutionStr = hasSolutionString(stringFormulas);
-		
-		info += "int has solution: " + hasSolutionInt + " string has solution: " + hasSolutionStr + System.lineSeparator();
+
+		info += "int has solution: " + hasSolutionInt + " string has solution: " + hasSolutionStr
+				+ System.lineSeparator();
 
 		if (hasSolutionInt && hasSolutionStr) {
 			info += "returning true" + System.lineSeparator();
@@ -226,7 +228,7 @@ public class Condition {
 		if (stringFormulas.size() == 0) {
 			return true;
 		}
-		
+
 		List<String> variables = new ArrayList<String>();
 		for (ConditionalFormula formula : stringFormulas) {
 			for (int i = 0; i < formula.getVariableCount(); i++) {
@@ -324,7 +326,7 @@ public class Condition {
 		if (integerFormulas.size() == 0) {
 			return true;
 		}
-		
+
 		List<String> varNames = new ArrayList<String>();
 		for (ConditionalFormula formula : integerFormulas) {
 			for (int i = 0; i < formula.getVariableCount(); i++) {
@@ -354,15 +356,18 @@ public class Condition {
 			}
 
 			if (!lhsVar.isConstant() && rhsVar.isConstant()) {
-				addConstraint(varToIntVar.get(lhsVar.getName()), Integer.parseInt(rhsVar.getValue()), formula.getOperator());
+				addConstraint(varToIntVar.get(lhsVar.getName()), Integer.parseInt(rhsVar.getValue()),
+						formula.getOperator());
 			}
 
 			if (lhsVar.isConstant() && !rhsVar.isConstant()) {
-				addConstraint(varToIntVar.get(rhsVar.getName()), Integer.parseInt(lhsVar.getValue()), flipOperator(formula.getOperator()));
+				addConstraint(varToIntVar.get(rhsVar.getName()), Integer.parseInt(lhsVar.getValue()),
+						flipOperator(formula.getOperator()));
 			}
 
 			if (!lhsVar.isConstant() && !rhsVar.isConstant()) {
-				addConstraint(varToIntVar.get(lhsVar.getName()), varToIntVar.get(rhsVar.getName()), formula.getOperator());
+				addConstraint(varToIntVar.get(lhsVar.getName()), varToIntVar.get(rhsVar.getName()),
+						formula.getOperator());
 			}
 		}
 
@@ -536,7 +541,7 @@ public class Condition {
 		}
 		return null;
 	}
-	
+
 	private String getOppositeOperator(String operator) {
 
 		if (operator.equals("==")) {

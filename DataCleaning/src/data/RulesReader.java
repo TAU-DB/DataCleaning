@@ -79,14 +79,14 @@ public class RulesReader {
 			String expression = "./false_query";
 			NodeList queryNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm, XPathConstants.NODESET);
 			String falseQuery = queryNodeList.item(0).getTextContent();
-			
+
 			expression = "./true_query";
 			queryNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm, XPathConstants.NODESET);
 			String trueQuery = "";
 			if (queryNodeList.getLength() > 0) {
 				trueQuery = queryNodeList.item(0).getTextContent();
 			}
-			
+
 			expression = "./source_query";
 			queryNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm, XPathConstants.NODESET);
 			String sourceQuery = "";
@@ -108,7 +108,7 @@ public class RulesReader {
 				}
 				lhs.add(formula);
 			}
-			
+
 			expression = "./rhs/*";
 			NodeList rhsFormulasNodeList = (NodeList) xPath.compile(expression).evaluate(ruleElm,
 					XPathConstants.NODESET);
@@ -122,8 +122,8 @@ public class RulesReader {
 					formula = parseConditionalFormula(formulaElm);
 				}
 				rhs.add(formula);
-			}			
-			
+			}
+
 			return new Rule(type, falseQuery, trueQuery, sourceQuery, lhs, rhs);
 		} catch (XPathExpressionException e) {
 			e.printStackTrace();

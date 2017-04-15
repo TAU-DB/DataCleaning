@@ -15,7 +15,8 @@ public class Rule {
 	private List<Formula> m_lhs;
 	private List<Formula> m_rhs;
 
-	public Rule(String type, String falseQuery, String trueQuery, String sourceQuery, List<Formula> lhs, List<Formula> rhs) {
+	public Rule(String type, String falseQuery, String trueQuery, String sourceQuery, List<Formula> lhs,
+			List<Formula> rhs) {
 		m_type = type;
 		m_falseQuery = falseQuery;
 		m_trueQuery = trueQuery;
@@ -87,8 +88,8 @@ public class Rule {
 
 		String result = toString() + System.lineSeparator();
 
-		result += m_falseQuery + System.lineSeparator() + m_trueQuery + System.lineSeparator() + m_sourceQuery + System.lineSeparator() + "LHS variables:"
-				+ System.lineSeparator();
+		result += m_falseQuery + System.lineSeparator() + m_trueQuery + System.lineSeparator() + m_sourceQuery
+				+ System.lineSeparator() + "LHS variables:" + System.lineSeparator();
 		for (Formula formula : m_lhs) {
 			for (int i = 0; i < formula.getVariableCount(); i++) {
 				result += formula.getVariableAt(i).toDetailedString() + System.lineSeparator();
@@ -127,7 +128,7 @@ public class Rule {
 	}
 
 	public List<String> getConditionalColumns(int relationalFormulaIndex) {
-
+		
 		List<String> result = new ArrayList<String>();
 		int currRFIndex = 0;
 		RelationalFormula relFormula = null;
@@ -175,15 +176,15 @@ public class Rule {
 				}
 			}
 		}
-
+		
 		return result;
 	}
-	
+
 	public Rule toNFRule() {
 		if (!isTupleGenerating()) {
 			return new Rule(m_type, m_falseQuery, m_trueQuery, m_sourceQuery, m_lhs, m_rhs);
 		}
-		
+
 		Set<String> rhsDefinedVars = getRHSDefinedVariables();
 		RelationalFormula formula = (RelationalFormula) m_rhs.get(0);
 		HashMap<String, Variable> varMap = new HashMap<String, Variable>();
@@ -191,13 +192,13 @@ public class Rule {
 		for (int i = 0; i < formula.getVariableCount(); i++) {
 			Variable var = formula.getVariableAt(i);
 			if (var.isConstant()) {
-				System.out.println("in toNFRule variable is constant!");
 				System.exit(0);
 			}
-			
+
 			// BUG if variable appears in two columns in RHS formula
 			if (!rhsDefinedVars.contains(var.getName())) {
-				varMap.put(var.getName(), new Variable("temp_" + tempIndex, var.getColumn(), false, "temp_" + tempIndex, var.getType()));
+				varMap.put(var.getName(),
+						new Variable("temp_" + tempIndex, var.getColumn(), false, "temp_" + tempIndex, var.getType()));
 				tempIndex++;
 			}
 		}
@@ -210,7 +211,7 @@ public class Rule {
 				newVariables.add(var);
 			}
 		}
-		
+
 		List<Formula> newRHS = new ArrayList<Formula>();
 		RelationalFormula newRHSFormula = new RelationalFormula(formula.getTable(), newVariables);
 		newRHS.add(newRHSFormula);
@@ -222,12 +223,12 @@ public class Rule {
 			ConditionalFormula conFormula = new ConditionalFormula(conFormulaVars, "==");
 			newRHS.add(conFormula);
 		}
-		
+
 		return new Rule(m_type, m_falseQuery, m_trueQuery, m_sourceQuery, m_lhs, newRHS);
 	}
 
 	private int getVariableCount() {
-		
+
 		List<Formula> formulas = new ArrayList<Formula>();
 		formulas.addAll(m_lhs);
 		formulas.addAll(m_rhs);
@@ -245,7 +246,7 @@ public class Rule {
 		}
 		return variables.size();
 	}
-	
+
 	private boolean isVariableInBothSides(String varName) {
 
 		boolean isVarInLHS = false;

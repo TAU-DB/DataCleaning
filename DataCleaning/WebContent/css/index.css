@@ -79,3 +79,11 @@ body {
 #query_div {
 	text-align: center;
 }
+
+#no_violations {
+	color: red;
+	font-size: 80px;
+	font-weight: 400;
+	font-style: normal;
+	font-family: "Roboto", helvetica, arial, sans-serif;
+}

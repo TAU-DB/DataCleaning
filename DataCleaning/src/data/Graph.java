@@ -9,59 +9,70 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import Controllers.MainController;
-import sun.java2d.pipe.OutlineTextRenderer;
 
 public class Graph {
 
 	private HashMap<Vertex, List<Vertex>> m_neighbors;
 	private HashMap<Vertex, Double> m_selfLoopProb;
 	private HashMap<Vertex, List<Double>> m_probabilities;
-	private HashMap<Vertex, List<List<List<String>>>> m_causeSubSets;
+	private HashMap<Vertex, List<List<List<String>>>> m_causeColsSets;
 
 	public Graph() {
 		m_neighbors = new HashMap<Vertex, List<Vertex>>();
 		m_probabilities = new HashMap<Vertex, List<Double>>();
-		m_causeSubSets = new HashMap<Vertex, List<List<List<String>>>>();
+		m_causeColsSets = new HashMap<Vertex, List<List<List<String>>>>();
 		m_selfLoopProb = new HashMap<Vertex, Double>();
 	}
 
 	public void calculateEdgesProbabilities() {
+
+		if (MainController.IS_BASIC) {
+			for (Vertex v : m_neighbors.keySet()) {
+				List<Vertex> neighbors = m_neighbors.get(v);
+				if (neighbors.size() == 0) {
+					continue;
+				}
+				double val = 1.0 / ((double) neighbors.size());
+				for (int i = 0; i < neighbors.size(); i++) {
+					m_probabilities.get(v).add(val);
+				}
+				m_selfLoopProb.put(v, 0.0);
+			}
+			return;
+		}
+
 		for (Vertex v : m_neighbors.keySet()) {
 			double temp = 0;
 			List<Vertex> neighbors = m_neighbors.get(v);
-			List<List<List<String>>> verCauseSubSets = m_causeSubSets.get(v);
+			List<List<List<String>>> verCauseSubSets = m_causeColsSets.get(v);
 			for (int i = 0; i < neighbors.size(); i++) {
 				double edgeProb = 0;
 				Vertex n = neighbors.get(i);
 				List<List<String>> edgeCauseSubSets = verCauseSubSets.get(i);
-				int colNum = n.getTuple().getColumns().size();
-				List<Double> probByColNum = edgesProbByColNum(colNum, 0.1);
+				int causeColNum = n.getTuple().getCauseColumns().size();
+				// List<Double> probByColNum = edgesProbByColNum(causeColNum,
+				// 1.0);
 				for (List<String> edgeCauseSubSet : edgeCauseSubSets) {
-					edgeProb += probByColNum.get(edgeCauseSubSet.size());
+					// edgeProb += probByColNum.get(edgeCauseSubSet.size());
+					Double tableBeta = MainController.m_tableToBeta.get(n.getTuple().getTable());
+					if (tableBeta == null) {
+						tableBeta = new Double(0);
+					}
+					edgeProb += edgeCauseSubSet.size() * (1 - tableBeta);
 				}
-				//if (edgeProb > 1) {
-				//	System.out.println("FATAL in calculateEdgesProbabilities prob sum are > 1");
-				//	System.exit(0);
-				//}
-
 				m_probabilities.get(v).add(edgeProb);
-				temp = m_selfLoopProb.get(v);
-				m_selfLoopProb.put(v, temp + (1 - edgeProb));
+				m_selfLoopProb.put(v, 0.0);
 			}
 
 			// Normalize out going edges probs
-			double outProbSum = m_selfLoopProb.get(v);
+			double outProbSum = 0;
 			for (int i = 0; i < m_neighbors.get(v).size(); i++) {
 				outProbSum += m_probabilities.get(v).get(i);
 			}
 
-			double currSelfLoopProb = m_selfLoopProb.get(v);
-			currSelfLoopProb = currSelfLoopProb / outProbSum;
-			m_selfLoopProb.put(v, currSelfLoopProb);
 			for (int i = 0; i < m_neighbors.get(v).size(); i++) {
 				temp = m_probabilities.get(v).get(i);
 				temp = temp / outProbSum;
-				m_probabilities.get(v).set(i, temp);
 			}
 		}
 	}
@@ -96,11 +107,11 @@ public class Graph {
 		m_neighbors.put(v, new ArrayList<Vertex>());
 		m_selfLoopProb.put(v, new Double(0));
 		m_probabilities.put(v, new ArrayList<Double>());
-		m_causeSubSets.put(v, new ArrayList<List<List<String>>>());
+		m_causeColsSets.put(v, new ArrayList<List<List<String>>>());
 		return true;
 	}
 
-	public boolean addEdge(Vertex src, Vertex dst, List<List<String>> causeSubSets) {
+	public boolean addEdge(Vertex src, Vertex dst, List<String> trueCauseCols) {
 
 		if (!m_neighbors.containsKey(src)) {
 			return false;
@@ -110,28 +121,24 @@ public class Graph {
 			return false;
 		}
 
-		if (causeSubSets.size() == 0) {
+		if (trueCauseCols.size() == 0) {
 			System.out.println("FATAL in addEdge because the cause subsets size is zero!");
 			System.exit(0);
 		}
 
 		if (!m_neighbors.get(src).contains(dst)) {
 			m_neighbors.get(src).add(dst);
-			m_causeSubSets.get(src).add(new ArrayList<List<String>>());
+			m_causeColsSets.get(src).add(new ArrayList<List<String>>());
 		}
 
 		int edgeIndex = m_neighbors.get(src).indexOf(dst);
-		List<List<String>> currCauseSetsList = m_causeSubSets.get(src).get(edgeIndex);
-		for (List<String> causeSubSet : causeSubSets) {
-			if (!containsList(currCauseSetsList, causeSubSet)) {
-				currCauseSetsList.add(causeSubSet);
-			}
-		}
+		List<List<String>> currCauseColsSets = m_causeColsSets.get(src).get(edgeIndex);
+		currCauseColsSets.add(trueCauseCols);
 
 		return true;
 	}
 
-	public boolean addEdge(DBTuple srcTuple, DBTuple dstTuple, List<List<String>> causeSubSets) {
+	public boolean addEdge(DBTuple srcTuple, DBTuple dstTuple, List<String> trueCauseCols) {
 
 		Vertex src = null;
 		Vertex dst = null;
@@ -144,7 +151,7 @@ public class Graph {
 			}
 		}
 
-		return addEdge(src, dst, causeSubSets);
+		return addEdge(src, dst, trueCauseCols);
 	}
 
 	public Set<Vertex> getVertecis() {
@@ -184,7 +191,7 @@ public class Graph {
 	}
 
 	public String toJSMapStr() {
-		
+
 		MainController mainController = MainController.getInstance();
 		String result = "{ \"neighbors\" : {";
 		int vertexIndex = 0;
@@ -244,7 +251,7 @@ public class Graph {
 			vertexIndex++;
 		}
 		result += "}";
-		
+
 		return result;
 	}
 
